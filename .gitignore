@@ -27,3 +27,6 @@ node_modules/
 *.tgz
 npm-debug.log*
 package-lock.json
+
+# Exact compiler sources, generated smoke output, and local proof-kernel caches.
+.toolchain/
