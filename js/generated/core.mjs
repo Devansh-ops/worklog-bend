@@ -1027,8 +1027,35 @@ function $stage_unique(_event_0, _existing_0, _duplicate_0) {
   }
 }
 
+function $stage_candidate_complete(_event_0, _valid_0) {
+  if (_valid_0) {
+    return {$: "StageAccepted", "event": _event_0};
+  } else {
+    return {$: "StageRejected", "reason": "command would create incomplete history; check its clock and references"};
+  }
+}
+
+function $stage_candidate_replayed(_result_0, _event_0) {
+  if (_result_0.$ === "ReplayConflict") {
+    return {$: "StageRejected", "reason": "candidate event content conflict"};
+  } else {
+    const _state_0 = _result_0["state"];
+    return $stage_candidate_complete(_event_0, $$complete(_state_0));
+  }
+}
+
+function $stage_proposed(_result_0, _existing_0) {
+  if (_result_0.$ === "StageRejected") {
+    const _reason_0 = _result_0["reason"];
+    return {$: "StageRejected", "reason": _reason_0};
+  } else {
+    const _event_0 = _result_0["event"];
+    return $stage_candidate_replayed($$replay($$List_append(_existing_0, {$: "Con", "head": _event_0, "tail": {$: "Nil"}})), _event_0);
+  }
+}
+
 function $stage(_events_0, _event_0) {
-  return $stage_unique(_event_0, _events_0, $$ids_contains(_events_0, $$event_id(_event_0)));
+  return $stage_proposed($$stage_unique(_event_0, _events_0, $$ids_contains(_events_0, $$event_id(_event_0))), _events_0);
 }
 
 function $schema_allowed(_version_0) {
@@ -1798,6 +1825,7 @@ const $$valid_patch = $valid_patch;
 const $$valid_kind = $valid_kind;
 const $$command_valid = $command_valid;
 const $$replay = $replay;
+const $$stage_unique = $stage_unique;
 const $$exact_contains = $exact_contains;
 const $$acknowledge_success = $acknowledge_success;
 const $$eligible_found = $eligible_found;
@@ -1894,6 +1922,9 @@ const $$List_merge_step = $List_merge_step;export default {
   "stage_valid": run_lib((a0,a1) => run_loop($stage_valid(a0,a1)), 2),
   "stage_state": run_lib((a0,a1) => run_loop($stage_state(a0,a1)), 2),
   "stage_unique": run_lib((a0,a1,a2) => run_loop($stage_unique(a0,a1,a2)), 3),
+  "stage_candidate_complete": run_lib((a0,a1) => run_loop($stage_candidate_complete(a0,a1)), 2),
+  "stage_candidate_replayed": run_lib((a0,a1) => run_loop($stage_candidate_replayed(a0,a1)), 2),
+  "stage_proposed": run_lib((a0,a1) => run_loop($stage_proposed(a0,a1)), 2),
   "stage": run_lib((a0,a1) => run_loop($stage(a0,a1)), 2),
   "schema_allowed": run_lib((a0) => run_loop($schema_allowed(a0)), 1),
   "exact_contains": run_lib((a0,a1) => run_loop($exact_contains(a0,a1)), 2),

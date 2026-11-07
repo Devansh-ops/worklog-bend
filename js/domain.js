@@ -1,5 +1,6 @@
 import core from './generated/core.mjs';
 import reports from './generated/reports.mjs';
+import views from './generated/views.mjs';
 import { CodecError, parseJSON, canonicalJSON, immutableJSON, listToBend, listFromBend } from './codec.js';
 
 const STATUS = Object.freeze({ backlog: 'SBacklog', todo: 'STodo', in_progress: 'SProgress', blocked: 'SBlocked', review: 'SReview', done: 'SDone' });
@@ -59,13 +60,14 @@ export function encodeEvent(input, calendar = localDay) {
   const day = date(calendar(ts), '$calendar');
   const type = text(event.type, '$event.type', { max: 256 });
   const taskId = () => text(event.taskId, '$event.taskId', { max: 256 });
+  const legacyDefault = (key, fallback) => Object.hasOwn(event, key) ? event[key] : fallback;
   let payload;
   switch (type) {
     case 'task.create':
-      payload = { $: 'Created', taskId: taskId(), title: text(event.title ?? '(untitled)', '$event.title'),
-        status: enumeration(event.status ?? 'todo', STATUS, '$event.status'),
-        priority: enumeration(event.priority ?? 'normal', PRIORITY, '$event.priority'),
-        tags: tags(event.tags ?? [], '$event.tags'), private: boolean(event.private ?? false, '$event.private') };
+      payload = { $: 'Created', taskId: taskId(), title: text(legacyDefault('title', '(untitled)'), '$event.title'),
+        status: enumeration(legacyDefault('status', 'todo'), STATUS, '$event.status'),
+        priority: enumeration(legacyDefault('priority', 'normal'), PRIORITY, '$event.priority'),
+        tags: tags(legacyDefault('tags', []), '$event.tags'), private: boolean(legacyDefault('private', false), '$event.private') };
       break;
     case 'task.status': payload = { $: 'StatusChanged', taskId: taskId(), status: enumeration(event.to, STATUS, '$event.to') }; break;
     case 'task.note': payload = { $: 'Noted', taskId: taskId(), text: text(event.text, '$event.text') }; break;
@@ -136,9 +138,11 @@ export function replayEvents(events, calendar = localDay) {
 }
 
 export function validateCommand(events, event, calendar = localDay) {
-  const result = core.stage(listToBend(events, value => encodeEvent(value, calendar)), encodeEvent(event, calendar));
+  const encoded = encodeEvent(event, calendar);
+  const result = core.stage(listToBend(events, value => encodeEvent(value, calendar)), encoded);
   if (result.$ === 'StageRejected') throw new CodecError(result.reason, '$command');
   if (result.$ !== 'StageAccepted') throw new CodecError('unexpected compiled command result');
+  if (!core.event_eq(result.event, encoded)) throw new CodecError('compiled command changed its supplied event');
   return immutableJSON(event);
 }
 
@@ -166,9 +170,11 @@ export function requestContext(events, sendNotes, { startDay, endDay }) {
 }
 
 export function validateProposal(events, event) {
-  const result = core.proposal_stage(listToBend(events, value => encodeEvent(value)), encodeEvent(event));
+  const encoded = encodeEvent(event);
+  const result = core.proposal_stage(listToBend(events, value => encodeEvent(value)), encoded);
   if (result.$ === 'StageRejected') throw new CodecError(result.reason, '$proposal');
   if (result.$ !== 'StageAccepted') throw new CodecError('unexpected compiled proposal result');
+  if (!core.event_eq(result.event, encoded)) throw new CodecError('compiled proposal changed its supplied event');
   return immutableJSON(event);
 }
 
@@ -192,4 +198,33 @@ export function reportItems(events, sendNotes, { date: day, kind, includePlan = 
   }));
 }
 
-export { core, reports, listToBend, listFromBend };
+export function ownerProjection(events, query = '', wiki = false, suppliedState = null) {
+  const compiled = suppliedState ?? replayEvents(events).compiled;
+  const folded = text(query, '$search', { empty: true }).trim().toLowerCase();
+  const keys = listToBend(listFromBend(compiled.tasks), task => ({ $: 'SearchKey', taskId: task.id, foldedText: views.search_text(task).toLowerCase() }));
+  const selected = wiki ? views.wiki_search_tasks(compiled, keys, folded) : views.search_tasks(compiled, keys, folded);
+  return {
+    tasks: listFromBend(selected, decodeTask),
+    columns: Object.fromEntries(Object.entries(STATUS).map(([name, tag]) => [name, listFromBend(views.for_status(selected, { $: tag }), decodeTask)])),
+    counts: listFromBend(views.status_counts_tasks(selected), item => ({ status: statusNames[item.status.$], count: item.count })),
+    tags: listFromBend(views.tag_counts(selected), item => ({ tag: item.tag, count: item.count })),
+  };
+}
+
+export function journalDays(events) {
+  return listFromBend(views.day_index(listToBend(events, event => encodeEvent(event))), item => ({ day: item.day, count: item.count }));
+}
+export function taskHistory(events, id) {
+  return listFromBend(views.task_history(listToBend(events, event => encodeEvent(event)), text(id, '$taskId', { max: 256 })), event => parseJSON(event.canonical));
+}
+export function journalEvents(events, day) {
+  return listFromBend(views.day_events(listToBend(events, event => encodeEvent(event)), date(day, '$day')), event => parseJSON(event.canonical));
+}
+export function taggedTasks(events, tag, suppliedState = null) {
+  return listFromBend(views.tag_tasks(suppliedState ?? replayEvents(events).compiled, text(tag, '$tag', { max: 1000 })), decodeTask);
+}
+export function relatedTasks(events, id, suppliedState = null) {
+  return listFromBend(views.related_tasks(suppliedState ?? replayEvents(events).compiled, text(id, '$taskId', { max: 256 })), decodeTask);
+}
+
+export { core, reports, views, listToBend, listFromBend };

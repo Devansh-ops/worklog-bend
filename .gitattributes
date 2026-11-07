@@ -1,2 +1,7 @@
 # WSL and Linux must be able to execute shell helpers from Windows checkouts.
 *.sh text eol=lf
+js/generated/* text eol=lf
+bend/*.bend text eol=lf
+LAWS.bend text eol=lf
+PROOF.bend text eol=lf
+proof/*.bend text eol=lf

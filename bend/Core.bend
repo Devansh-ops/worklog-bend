@@ -480,8 +480,29 @@ def stage_unique(event: T.DomainEvent, existing: List<&2, T.DomainEvent>, duplic
     case False{}:
       stage_state(replay(existing), event)
 
+def stage_candidate_complete(event: T.DomainEvent, valid: Bool) -> T.StageResult:
+  match valid:
+    case True{}:
+      T.StageAccepted{event}
+    case False{}:
+      T.StageRejected{"command would create incomplete history; check its clock and references"}
+
+def stage_candidate_replayed(result: T.ReplayResult, event: T.DomainEvent) -> T.StageResult:
+  match result:
+    case T.ReplayConflict{id}:
+      T.StageRejected{"candidate event content conflict"}
+    case T.Replayed{state}:
+      stage_candidate_complete(event, complete(state))
+
+def stage_proposed(result: T.StageResult, existing: List<&2, T.DomainEvent>) -> T.StageResult:
+  match result:
+    case T.StageRejected{reason}:
+      T.StageRejected{reason}
+    case T.StageAccepted{+event}:
+      stage_candidate_replayed(replay(List.append(&2, T.DomainEvent, existing, [event])), event)
+
 def stage(+events: List<&2, T.DomainEvent>, +event: T.DomainEvent) -> T.StageResult:
-  stage_unique(event, events, ids_contains(events, event_id(event)))
+  stage_proposed(stage_unique(event, events, ids_contains(events, event_id(event))), events)
 
 def schema_allowed(+version: U32) -> Bool:
   Bool.or(U32.is_eq(version, 1), U32.is_eq(version, 2))

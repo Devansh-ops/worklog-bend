@@ -12,9 +12,9 @@
  * repo behind this and nothing to publish to.
  */
 import {
-  makeEvent, unionEvents, foldEvents, serialiseMonth, renderMonthMd, renderYearReadme,
+  unionEvents, foldEvents, serialiseMonth, renderMonthMd, renderYearReadme,
   renderChangelogIndex, renderLogReadme, renderBoardMd, renderBoardSnapshot,
-  renderManifest, todayISO, PATHS,
+  renderManifest, todayISO, localDate, PATHS,
 } from './store.js';
 
 export const DEMO_SLUG = 'demo/work-log';
@@ -38,16 +38,21 @@ function clock() {
   const now = Date.now();
   const d = new Date(now);
   // Local month start, because that is the month file an event is written to.
-  const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 30).getTime();
+  const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0).getTime();
   const room = (now - monthStart) / 3600000;
-  const scale = Math.min(1, room / 170);
+  const scale = Math.max(0, Math.min(1, room / 170));
   return (hoursAgo) => new Date(now - hoursAgo * scale * 3600000).toISOString();
 }
 
 /** A week of plausible backend work: things in flight, a blocker, and finished items. */
 export function demoEvents() {
   const at = clock();
-  const ev = (hoursAgo, type, payload) => ({ ...makeEvent(type, payload), ts: at(hoursAgo) });
+  // A compressed boundary can put every event in one millisecond. Preserve the
+  // synthetic chronology in the ID tie-breaker rather than randomizing causality.
+  const ev = (hoursAgo, type, payload) => ({
+    id: `demo-${String(1000000 - Math.round(hoursAgo * 1000)).padStart(7, '0')}-${type}-${payload.taskId || `${payload.date}-${payload.kind}`}`,
+    ts: at(hoursAgo), type, ...payload,
+  });
   const task = (hoursAgo, taskId, title, status, priority, tags) =>
     ev(hoursAgo, 'task.create', { taskId, title, status, priority, tags });
 
@@ -125,7 +130,7 @@ export function demoRepo({ appUrl = 'https://github.com' } = {}) {
   const stats = new Map([[month, {
     month,
     events: events.length,
-    days: new Set(events.map((e) => e.ts.slice(0, 10))).size,
+    days: new Set(events.map((e) => localDate(e.ts))).size,
     updated: new Date().toISOString(),
   }]]);
   const statList = [...stats.values()];

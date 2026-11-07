@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { encodeEvent, mergeEvents, replayEvents, eligibleContext, requestContext, validateCommand, validateProposal, EventConflictError } from '../js/domain.js';
+import { demoEvents, demoRepo } from '../js/demo.js';
+import { Store } from '../js/store.js';
 const event = (id, type, payload = {}, ts = '2026-11-07T09:00:00.000Z') => ({ id, type, ts, ...payload });
 const create = event('a', 'task.create', { taskId: 'T-aaa111', title: 'Synthetic public', status: 'todo', extension: { preserved: ['x', 2] } });
 const done = event('b', 'task.status', { taskId: 'T-aaa111', to: 'done' }, '2026-11-07T11:00:00.000Z');
@@ -38,9 +40,25 @@ assert.equal(state.standups['2026-11-07'].evening.style, 'markdown');
 assert.equal(state.summaries['2026-11-07'].evening.headline, 'DERIVED_CANARY');
 assert.throws(() => validateProposal(history, event('v', 'task.note', { taskId: 'T-secret', text: 'bad' })), /proposal/);
 assert.deepEqual(validateCommand([privateTask], privateNote), privateNote);
+const backwardNote = event('backward-note', 'task.note', { taskId: 'T-aaa111', text: 'Clock rollback' }, '2026-11-07T08:00:00.000Z');
+assert.throws(() => validateCommand([create], backwardNote), /incomplete history/);
+assert.equal(replayEvents([create, backwardNote]).complete, false);
+assert.equal(mergeEvents([create, backwardNote]).length, 2, 'historical records remain available for diagnosis');
 const opaque = event('u', 'future.operation', { preserve: { this: true } });
 assert.equal(replayEvents([create, opaque]).complete, false);
 assert.deepEqual(eligibleContext([create, opaque], true), []);
 assert.throws(() => validateCommand([create, opaque], done), /command/);
-for (const malformed of [{ ...create, status: 'invented' }, { ...create, private: 'false' }, { ...create, tags: 'tag' }, { ...create, ts: 'yesterday' }]) assert.throws(() => encodeEvent(malformed));
+for (const malformed of [{ ...create, status: 'invented' }, { ...create, private: 'false' }, { ...create, private: null }, { ...create, status: null }, { ...create, tags: null }, { ...create, tags: 'tag' }, { ...create, ts: 'yesterday' }]) assert.throws(() => encodeEvent(malformed));
+const originalNow = Date.now;
+try {
+  for (const milliseconds of [0, 1, 15 * 60000, 30 * 60000 - 1]) {
+    const clock = new Date(2026, 10, 1, 0, 0, 0, milliseconds).getTime();
+    Date.now = () => clock;
+    const events = demoEvents();
+    assert.equal(replayEvents(events).complete, true, `demo at month start +${milliseconds}ms`);
+    assert.ok(events.every(event => new Date(event.ts).getTime() <= clock));
+    const store = new Store(demoRepo()); await store.load();
+    assert.equal(store.authoritative, true); assert.equal(store.tasks.length, 10);
+  }
+} finally { Date.now = originalNow; }
 console.log('Real Bend bridge passed: collisions, canonical replay, completion/reopen, note identities, tombstones, reports, privacy, notes-off, incomplete-state refusal, malformed boundaries');
