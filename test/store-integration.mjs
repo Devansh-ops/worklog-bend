@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Store, PATHS } from '../js/store.js';
 import { GitHubRepo, ConflictError } from '../js/github.js';
+import { planMonths } from '../js/domain.js';
 import { createHash } from 'node:crypto';
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
@@ -191,5 +192,70 @@ await check('complete source indexing discovers unlisted history and unchanged r
   repo.revision = revision('c');
   await assert.rejects(() => store.load(), /unsupported schema/);
   assert.equal(repo.writes.length, 0);
+});
+await check('checked planning creates an unread new destination without inventing source reads', async () => {
+  const repo = withHistory([create]), store = new Store(repo);
+  const reads = [], read = repo.getFile.bind(repo);
+  repo.getFile = async path => { reads.push(path); return read(path); };
+  await store.load();
+  const next = event('new-month', 'task.note', { taskId: create.taskId, text: 'NEW_MONTH' }, '2027-01-15T09:00:00.000Z');
+  store.stage(next);
+  reads.length = 0;
+  const plan = await store.preparePublish();
+  assert.deepEqual(reads, []);
+  assert.deepEqual(store.touchedMonths, ['2027-01']);
+  assert.deepEqual(JSON.parse(plan.files.find(file => file.path === PATHS.month('2027-01')).text).events, [next]);
+  assert.equal(plan.files.some(file => file.path === PATHS.month('2026-11')), false);
+});
+await check('physical historical source relocation uses local day and preserves empty-source metadata', async () => {
+  const previousTZ = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  try {
+    const boundary = event('boundary', 'task.create', { taskId: 'T-boundary', title: 'CANONICAL_EXTENSION', extra: { preserved: true } }, '2026-11-01T00:15:00.000Z');
+    const untouched = event('untouched', 'task.create', { taskId: 'T-untouched', title: 'Untouched' }, '2026-09-15T09:00:00.000Z');
+    const repo = new FakeRepo([
+      [PATHS.manifest, { schema: 2, months: [{ month: '2026-08', extension: 'KEEP_EMPTY' }, { month: '2026-09', events: 1, days: 1, updated: 'UNCHANGED' }] }],
+      [PATHS.month('2026-08'), { month: '2026-08', events: [boundary], retained: { physical: 'August' } }],
+      [PATHS.month('2026-09'), { month: '2026-09', events: [untouched] }],
+    ]);
+    const store = new Store(repo); await store.load();
+    store.stage(event('after-boundary', 'task.note', { taskId: boundary.taskId, text: 'After' }, '2026-11-15T09:00:00.000Z'));
+    const plan = await store.preparePublish();
+    assert.deepEqual(store.touchedMonths, ['2026-08', '2026-10', '2026-11']);
+    const empty = JSON.parse(plan.files.find(file => file.path === PATHS.month('2026-08')).text);
+    assert.deepEqual(empty.events, []); assert.deepEqual(empty.retained, { physical: 'August' });
+    const moved = JSON.parse(plan.files.find(file => file.path === PATHS.month('2026-10')).text);
+    assert.deepEqual(moved.events, [boundary]);
+    assert.equal(plan.files.some(file => file.path === PATHS.month('2026-09')), false);
+    const stats = JSON.parse(plan.files.find(file => file.path === PATHS.manifest).text).months;
+    assert.deepEqual(stats.find(value => value.month === '2026-09'), { month: '2026-09', events: 1, days: 1, updated: 'UNCHANGED' });
+    assert.equal(stats.find(value => value.month === '2026-08').extension, 'KEEP_EMPTY');
+    assert.equal(stats.find(value => value.month === '2026-10').events, 1);
+    assert.equal(stats.find(value => value.month === '2026-10').days, 1);
+  } finally { if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ; }
+});
+await check('migration deletes a historical legacy physical month only after local-month relocation', async () => {
+  const previousTZ = process.env.TZ; process.env.TZ = 'America/Los_Angeles';
+  try {
+    const boundary = { ...create, ts: '2026-11-01T00:15:00.000Z' };
+    const repo = new FakeRepo([
+      [PATHS.manifest, { schema: 1, months: ['2026-08'] }],
+      [PATHS.legacyMonth('2026-08'), { month: '2026-08', events: [boundary], retained: ['EMPTY_LEGACY_METADATA'] }],
+    ]);
+    const store = new Store(repo); await store.load(); const plan = store.migrationCommit();
+    assert.deepEqual(plan.deletions, [PATHS.legacyMonth('2026-08')]);
+    const emptied = JSON.parse(plan.files.find(file => file.path === PATHS.month('2026-08')).text);
+    assert.deepEqual(emptied.events, []); assert.deepEqual(emptied.retained, ['EMPTY_LEGACY_METADATA']);
+    assert.deepEqual(JSON.parse(plan.files.find(file => file.path === PATHS.month('2026-10')).text).events, [boundary]);
+    assert.equal(repo.writes.length, 0);
+  } finally { if (previousTZ === undefined) delete process.env.TZ; else process.env.TZ = previousTZ; }
+});
+await check('planner host boundary refuses malformed months, schemas and unsupported semantics', async () => {
+  const options = { schemas: [2], currentMonth: '2026-11' };
+  for (const schema of [-1, 0x100000000, 1.5, '2']) assert.throws(() => planMonths([], [], { ...options, schemas: [schema] }), /U32/);
+  for (const currentMonth of ['2026-13', '2026-00', '26-11', null]) assert.throws(() => planMonths([], [], { ...options, currentMonth }), /calendar/);
+  assert.throws(() => planMonths([], [], { ...options, schemas: [2, 999, 1] }), /unsupported source schema/);
+  assert.throws(() => planMonths([], [event('opaque', 'unknown.future')], options), /unsupported source semantics/);
+  assert.throws(() => planMonths([{ month: '2026-11', currentExists: false, legacyExists: false, events: [create] }], [], options), /coverage/);
 });
 console.log(`${checks} store/effect integration checks passed; synthetic HTTP and loopback only`);

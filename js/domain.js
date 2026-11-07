@@ -1,6 +1,7 @@
 import core from './generated/core.mjs';
 import reports from './generated/reports.mjs';
 import views from './generated/views.mjs';
+import planning from './generated/planning.mjs';
 import { CodecError, parseJSON, canonicalJSON, immutableJSON, listToBend, listFromBend } from './codec.js';
 
 const STATUS = Object.freeze({ backlog: 'SBacklog', todo: 'STodo', in_progress: 'SProgress', blocked: 'SBlocked', review: 'SReview', done: 'SDone' });
@@ -213,6 +214,38 @@ export function ownerProjection(events, query = '', wiki = false, suppliedState 
 
 export function journalDays(events) {
   return listFromBend(views.day_index(listToBend(events, event => encodeEvent(event))), item => ({ day: item.day, count: item.count }));
+}
+
+/** Validated JSON boundary for the compiled month/publication planner. */
+export function planMonths(sources, pending, { schemas, currentMonth, migration = false, calendar = localDay } = {}) {
+  const month = (value, path) => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}$/.test(value)) throw new CodecError('invalid calendar month', path);
+    date(`${value}-01`, path);
+    return value;
+  };
+  if (!Array.isArray(sources) || !Array.isArray(pending) || !Array.isArray(schemas)) throw new CodecError('expected planner source, event and schema arrays', '$planning');
+  const encodedSchemas = listToBend(schemas, schema => {
+    if (!Number.isInteger(schema) || schema < 0 || schema > 0xffffffff) throw new CodecError('invalid U32 source schema', '$planning.schemas');
+    return schema;
+  });
+  const encodedSources = listToBend(sources, (source) => {
+    record(source, '$planning.source');
+    if (!Array.isArray(source.events)) throw new CodecError('expected source events array', '$planning.source.events');
+    return { $: 'SourceMonth', month: month(source.month, '$planning.source.month'),
+      currentExists: boolean(source.currentExists, '$planning.source.currentExists'),
+      legacyExists: boolean(source.legacyExists, '$planning.source.legacyExists'),
+      events: listToBend(source.events, event => encodeEvent(event, calendar)) };
+  });
+  const result = planning.plan(encodedSchemas, encodedSources, listToBend(pending, event => encodeEvent(event, calendar)),
+    month(currentMonth, '$planning.currentMonth'), boolean(migration, '$planning.migration'));
+  if (result.$ === 'PlanningRefused') throw new CodecError(result.reason, '$planning');
+  if (result.$ !== 'Planned') throw new CodecError('unexpected compiled planning result');
+  return immutableJSON({ events: listFromBend(result.events, event => parseJSON(event.canonical)),
+    groups: listFromBend(result.groups, group => {
+      if (group.$ !== 'MonthGroup') throw new CodecError('unexpected compiled month group');
+      return { month: group.month, events: listFromBend(group.events, event => parseJSON(event.canonical)), count: group.count, days: group.days,
+        hadCurrent: group.hadCurrent, hadLegacy: group.hadLegacy, write: group.write, deleteLegacy: group.deleteLegacy };
+    }) });
 }
 export function taskHistory(events, id) {
   return listFromBend(views.task_history(listToBend(events, event => encodeEvent(event)), text(id, '$taskId', { max: 256 })), event => parseJSON(event.canonical));

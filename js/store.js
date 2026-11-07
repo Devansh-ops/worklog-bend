@@ -30,7 +30,7 @@
  */
 
 import { ConflictError } from './github.js';
-import { mergeEvents, replayEvents, validateCommand, encodeEvent, core } from './domain.js';
+import { mergeEvents, replayEvents, validateCommand, encodeEvent, planMonths, core } from './domain.js';
 import { parseJSON, canonicalJSON, immutableJSON, listToBend, listFromBend } from './codec.js';
 import publication from './generated/publication.mjs';
 import { createVerifiedSourceReader } from './source-cache.js';
@@ -106,13 +106,6 @@ export function tzLabel(at = Date.now()) {
 
 const monthOf = (iso) => iso.slice(0, 7);
 const yearOf = (iso) => iso.slice(0, 4);
-/**
- * Which month file an event belongs to: the month of its local date, not of its UTC
- * timestamp. Filing by UTC would split a single evening across two month pages, which
- * is exactly the seam this change exists to remove. See touchedMonths() for what that
- * costs at a month boundary.
- */
-const monthOfEvent = (e) => monthOf(localDate(e.ts));
 const ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -678,35 +671,23 @@ export class Store {
   }
 
   /**
-   * Months our staged events belong to — the only month files a push may rewrite.
-   *
-   * Closed over boundary events, and that closure is load-bearing. Events are filed by
-   * local month, but an evening near a month boundary has a UTC timestamp in the
-   * neighbouring month, and commits written before that rule filed it there. Rewriting
-   * one file of such a pair without the other would either duplicate the event or --
-   * worse -- write it out of the file it was in and into none at all. So if either
-   * month of a boundary event is being rewritten, both are.
+   * Bend selects pending destination months and both physical source and local-day
+   * destination for historical relocation. Physical envelopes are the evidence of
+   * where a published event actually lives; its UTC timestamp is not that evidence.
    */
   get touchedMonths() {
-    const months = new Set(this.pending.map(monthOfEvent));
-    // Only published events can be misfiled: a staged one has never been written
-    // anywhere, so its UTC month has nothing in it to move and rewriting that file
-    // would just create an empty one next month.
-    const straddling = this.remoteEvents
-      .map((e) => [monthOf(e.ts), monthOfEvent(e)])
-      .filter(([utc, local]) => utc !== local);
+    if (!this.loaded) return [];
+    return this._monthPlan(false).groups.filter(group => group.write).map(group => group.month);
+  }
 
-    // A fixpoint, because pulling in one month can pull in the next: Sep–Oct then Oct–Nov.
-    for (let grew = true; grew;) {
-      grew = false;
-      for (const [utc, local] of straddling) {
-        if (months.has(utc) === months.has(local)) continue;
-        months.add(utc);
-        months.add(local);
-        grew = true;
-      }
-    }
-    return [...months].sort();
+  _monthPlan(migration) {
+    if (!this.fullyLoaded) throw new Error('Cannot build a commit: complete physical source history has not been read from the repo yet.');
+    const sources = this.loadedMonths.map(month => {
+      const current = this.envelopes.get(PATHS.month(month));
+      const legacy = this.envelopes.get(PATHS.legacyMonth(month));
+      return { month, currentExists: !!current, legacyExists: !!legacy, events: [...(current?.events || []), ...(legacy?.events || [])] };
+    });
+    return planMonths(sources, this.pending, { schemas: [...this.schemas.values()], currentMonth: monthOf(todayISO()), migration });
   }
 
   /**
@@ -922,20 +903,23 @@ export class Store {
     if (!this.needsMigration) return null;
     if (!this.fullyLoaded) throw new Error('Load the full history before upgrading: this rewrites every month.');
 
-    const merged = unionEvents(this.remoteEvents, this.pending);
+    const planned = this._monthPlan(true);
+    const merged = planned.events;
     const through = merged[merged.length - 1] || null;
     const { tasks } = foldEvents(merged);
 
-    const months = [...new Set([...merged.map(monthOfEvent), ...this.knownMonths])].sort();
+    const written = planned.groups.filter(group => group.write);
+    const months = written.map(group => group.month);
     const stats = new Map();
     const eventsIn = new Map();
-    for (const m of months) {
-      const evs = merged.filter((e) => monthOfEvent(e) === m);
-      eventsIn.set(m, evs);
+    for (const group of written) {
+      const m = group.month;
+      eventsIn.set(m, group.events);
       stats.set(m, {
+        ...this.monthStats.get(m),
         month: m,
-        events: evs.length,
-        days: new Set(evs.map((e) => localDate(e.ts))).size,
+        events: group.count,
+        days: group.days,
         updated: new Date().toISOString(),
       });
     }
@@ -956,10 +940,7 @@ export class Store {
     ];
 
     // Only ever delete a flat file whose events this same commit writes elsewhere.
-    const deletions = this.legacyMonths
-      .filter((m) => months.includes(m))
-      .map((m) => PATHS.legacyMonth(m))
-      .filter((path) => !files.some((f) => f.path === path));
+    const deletions = planned.groups.filter(group => group.deleteLegacy).map(group => PATHS.legacyMonth(group.month));
 
     const s = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
     const message = `worklog: upgrade data layout to schema ${SCHEMA}
@@ -991,31 +972,24 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   previewCommit() {
     if (!this.hasPending) return null;
 
-    const touchedAll = this.touchedMonths;
-    const unread = touchedAll.filter((m) => this.loadedMonths.length && !this.loadedMonths.includes(m));
-    if (unread.length) {
-      // Rewriting a month we never read would drop its events. push() loads them first.
-      throw new Error(`Cannot build a commit: ${unread.join(', ')} has not been read from the repo yet.`);
-    }
-
-    const merged = unionEvents(this.remoteEvents, this.pending);
+    const planned = this._monthPlan(false);
+    const merged = planned.events;
     const through = merged[merged.length - 1] || null;
     const { tasks } = replayEvents(merged);
 
-    const eventsIn = new Map(touchedAll.map((m) => [m, merged.filter((e) => monthOfEvent(e) === m)]));
-    // A month pulled in only to move an event out of it is written even if that leaves
-    // it empty -- it already exists in the repo and would otherwise keep a stale copy.
-    // A month that would be created empty is not written, and does not enter the index.
-    const touched = touchedAll.filter((m) => eventsIn.get(m).length || this.monthStats.has(m));
+    const written = planned.groups.filter(group => group.write);
+    const eventsIn = new Map(written.map(group => [group.month, group.events]));
+    const touched = written.map(group => group.month);
 
     // Month stats, refreshed for what we touched and carried over for what we did not.
     const stats = new Map([...this.monthStats].map(([m, s]) => [m, { ...s }]));
-    for (const m of touched) {
-      const evs = eventsIn.get(m);
+    for (const group of written) {
+      const m = group.month;
       stats.set(m, {
+        ...stats.get(m),
         month: m,
-        events: evs.length,
-        days: new Set(evs.map((e) => localDate(e.ts))).size,
+        events: group.count,
+        days: group.days,
         updated: new Date().toISOString(),
       });
     }
@@ -1052,7 +1026,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>
    */
   async preparePublish() {
     if (!this.loaded) await this.load();
-    await this.loadMonths(this.touchedMonths);
+    // The pinned source index determines existing physical history. A brand new
+    // pending destination has no file to read and is created by the checked plan.
+    await this.loadAll();
     return this.previewCommit();
   }
 
