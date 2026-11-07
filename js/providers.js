@@ -206,8 +206,33 @@ export const providersInMode = (mode) => Object.entries(PROVIDERS)
 
 export const modeOf = (providerId) => (PROVIDERS[providerId] || PROVIDERS[DEFAULT_PROVIDER]).mode;
 
-/** Trim a trailing slash so `${baseUrl}/chat/completions` never doubles up. */
-const normalise = (url) => String(url || '').replace(/\/+$/, '');
+/** Validate the actual recipient before displaying it or sending credentials. */
+export function normaliseDestination(value) {
+  if (!value) return '';
+  const url = new URL(String(value));
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('AI endpoints require HTTP or HTTPS.');
+  if (url.username || url.password || url.hash) throw new Error('AI endpoint URLs cannot contain credentials or fragments.');
+  for (const key of url.searchParams.keys()) {
+    if (/key|token|secret|password|authorization/i.test(key)) throw new Error('Keep API credentials in the key field, not the endpoint URL.');
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+  return url.href.replace(/\/$/, '');
+}
+
+export function endpointUrl(endpoint, suffix) {
+  const url = new URL(normaliseDestination(endpoint.baseUrl));
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${suffix.replace(/^\/+/, '')}`;
+  return url.href;
+}
+
+export function isLocalDestination(endpoint) {
+  if (!endpoint || endpoint.kind === 'none') return false;
+  if (['rules', 'webgpu'].includes(endpoint.kind)) return true;
+  try {
+    const url = new URL(normaliseDestination(endpoint.baseUrl));
+    return url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(url.hostname);
+  } catch { return false; }
+}
 
 /**
  * Resolve settings + tokens into everything a request needs.
@@ -217,7 +242,9 @@ const normalise = (url) => String(url || '').replace(/\/+$/, '');
 export function resolveEndpoint(settings = {}, tokens = {}) {
   const id = settings.provider && PROVIDERS[settings.provider] ? settings.provider : DEFAULT_PROVIDER;
   const p = PROVIDERS[id];
-  const baseUrl = normalise(settings.baseUrl || p.baseUrl);
+  let baseUrl = '', destinationError = '';
+  try { baseUrl = normaliseDestination(settings.baseUrl || p.baseUrl); }
+  catch (error) { destinationError = error.message || 'Invalid AI endpoint URL.'; }
 
   return {
     id,
@@ -228,8 +255,9 @@ export function resolveEndpoint(settings = {}, tokens = {}) {
     model: settings.model || p.suggested[0] || '',
     token: tokens[id] || null,
     headers: p.extraHeaders || {},
-    local: !!p.local,
+    local: isLocalDestination({ kind: p.kind || 'http', baseUrl }),
     needsToken: !!p.needsToken,
+    destinationError,
   };
 }
 
@@ -253,6 +281,7 @@ export function endpointProblem(ep) {
     return ep.model ? null : 'No local model chosen. Pick one in Settings.';
   }
 
+  if (ep.destinationError) return ep.destinationError;
   if (!ep.baseUrl) return 'No endpoint URL set. Choose a provider in Settings.';
   if (ep.needsToken && !ep.token) return `No API key set for ${ep.label}. Add one in Settings.`;
   if (!ep.model) return 'No model chosen. Pick one in Settings.';

@@ -14,13 +14,14 @@
  */
 import { todayISO, localTime } from '../store.js';
 import {
-  buildReport, renderReport, renderGroups, groupsOf, modelPayload, reportSize,
+  buildReport, renderReport, renderGroups, groupsOf, reportSize,
   standupEvent, GROUPINGS, DEFAULT_PREAMBLE,
 } from '../standup.js';
-import { writeStandup, AIError } from '../ai.js';
+import { writeStandup, prepareStandupRequest, AIError } from '../ai.js';
+import { appRevision, requireAuthoritative } from '../request.js';
 import { endpointProblem } from '../providers.js';
 import { el, clear, notice, spinner, toast, copyText, shortTime, plural } from './dom.js';
-import { confirmCloudSend } from './consent.js';
+import { confirmCloudSend, requestDetails } from './consent.js';
 
 const KINDS = Object.freeze([
   ['evening', 'Sign-off'],
@@ -139,6 +140,7 @@ export class StandupView {
       this.kind === 'morning' ? this.planToggle() : null,
 
       this.error ? notice('error', this.error) : null,
+      requestDetails(this.request),
 
       this.kind === 'evening' && this.report?.empty
         ? notice('warn', 'Nothing is logged against today yet, so there is nothing to build a report from. Move cards on the board or write an update in the brain dump — or just type the report here yourself.')
@@ -292,7 +294,7 @@ export class StandupView {
     const problem = endpointProblem(endpoint);
     if (problem) { this.error = problem; this.app.refresh(); return; }
 
-    const mine = this.touched ? (this.draft || '').trim() : '';
+    const mine = this.touched ? String(this.draft || '') : '';
     this.report = buildReport({
       tasks: this.app.tasks,
       events: this.app.state.events,
@@ -303,15 +305,15 @@ export class StandupView {
     if (this.report.empty && !mine) { toast('Nothing logged today to write up.', 'error'); return; }
 
     const includeNotes = this.app.settings.sendNotes !== false;
-    const payload = modelPayload(this.report, { includeNotes });
-
-    // What leaves is this day's lines, so that is what the gate shows -- not the board.
-    if (!await confirmCloudSend({
-      endpoint,
-      tasks: [],
-      includeNotes,
-      text: [JSON.stringify(payload, null, 1), mine].filter(Boolean).join('\n\n'),
-    })) return;
+    let request;
+    try {
+      requireAuthoritative(this.app);
+      request = await prepareStandupRequest({ endpoint, events: this.app.state.events, kind: this.kind, date: todayISO(),
+        includePlan: this.includePlan, includeNotes, draft: mine, readCurrent: () => appRevision(this.app) });
+      this.request = request;
+      this.app.refresh();
+      if (!await confirmCloudSend({ request })) return;
+    } catch (error) { this.error = error.message; this.app.refresh(); return; }
 
     this.busy = true;
     this.error = null;
@@ -320,10 +322,7 @@ export class StandupView {
 
     try {
       const groups = await writeStandup({
-        endpoint,
-        payload,
-        draft: mine,
-        includeNotes,
+        request,
         onProgress: ({ text, progress }) => {
           this.progressEl.textContent = `${text}${progress ? ` (${Math.round(progress * 100)}%)` : ''}`;
         },

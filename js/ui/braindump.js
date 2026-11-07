@@ -6,10 +6,11 @@
  * pushes: staged changes still go through the publish gate like any manual edit.
  */
 import { statusLabel } from '../store.js';
-import { proposeOperations, opsToEvents, AIError } from '../ai.js';
+import { proposeOperations, prepareOperationsRequest, approvedProposalEvents, AIError } from '../ai.js';
+import { appRevision, requireAuthoritative } from '../request.js';
 import { endpointProblem } from '../providers.js';
 import { el, clear, notice, spinner, toast, plural } from './dom.js';
-import { confirmCloudSend, cloudHint } from './consent.js';
+import { confirmCloudSend, cloudHint, requestDetails } from './consent.js';
 
 const PLACEHOLDER = `Finished the retry logic and pushed it for review.
 Started looking at the flaky integration test — it only fails on CI, still digging.
@@ -24,6 +25,8 @@ export class BraindumpView {
     this.proposals = null;      // null = not asked yet, [] = asked and nothing came back
     this.busy = false;
     this.error = null;
+    this.request = null;
+    this.proposalRequest = null;
     // Reused across renders so a model download can report progress without the
     // re-render wiping what you were typing.
     this.progressEl = el('div', { class: 'hint' });
@@ -53,6 +56,7 @@ export class BraindumpView {
         el('strong', { text: 'shows you each one before anything is applied' }), '.'),
       this.app.onRules ? notice('info', 'This is the demo interpreter: keyword rules in this page, not a model. It matches lines to tasks and guesses at status changes, which is enough to show the review step — a real provider reads your update far better. Nothing typed here leaves the page.') : null,
       el('div', { class: 'field', style: 'margin-top:12px' }, input, cloudHint(this.app.endpoint)),
+      requestDetails(this.request),
       this.error ? notice('error', this.error) : null,
       el('div', { class: 'row', style: 'justify-content:flex-end' },
         el('span', { class: 'spacer' }),
@@ -69,14 +73,15 @@ export class BraindumpView {
     const problem = endpointProblem(endpoint);
     if (problem) { this.error = problem; this.app.refresh(); return; }
 
-    // Before the first request to a cloud provider, show what is about to leave --
-    // including this text verbatim, since it is the one part no filter can protect.
-    if (!await confirmCloudSend({
-      endpoint,
-      tasks: this.app.tasks,
-      includeNotes: this.app.settings.sendNotes,
-      text: this.text,
-    })) return;
+    let request;
+    try {
+      requireAuthoritative(this.app);
+      request = await prepareOperationsRequest({ endpoint, events: this.app.state.events,
+        includeNotes: this.app.settings.sendNotes !== false, text: this.text, readCurrent: () => appRevision(this.app) });
+      this.request = request;
+      this.app.refresh();
+      if (!await confirmCloudSend({ request })) return;
+    } catch (error) { this.error = error.message; this.app.refresh(); return; }
 
     this.busy = true;
     this.error = null;
@@ -86,15 +91,13 @@ export class BraindumpView {
 
     try {
       const ops = await proposeOperations({
-        endpoint,
-        tasks: this.app.tasks,
-        text: this.text,
-        includeNotes: this.app.settings.sendNotes,
+        request,
         onProgress: ({ text, progress }) => {
           this.progressEl.textContent = `${text}${progress ? ` (${Math.round(progress * 100)}%)` : ''}`;
         },
       });
       this.proposals = ops.map((op) => ({ op, keep: true }));
+      this.proposalRequest = request;
       if (!ops.length) this.error = 'The AI did not find any board changes in that. Try being more specific about what moved.';
     } catch (e) {
       this.error = e instanceof AIError ? e.message : `Unexpected failure: ${e.message}`;
@@ -114,13 +117,17 @@ export class BraindumpView {
       apply.disabled = !n;
     };
 
-    apply.addEventListener('click', () => {
+    apply.addEventListener('click', async () => {
       const ops = kept().map((p) => p.op);
-      this.app.stage(...opsToEvents(ops));
-      this.proposals = null;
-      this.text = '';
-      toast(`Staged ${plural(ops.length, 'change')}. Review and publish when ready.`);
-      this.app.go('board');
+      try {
+        requireAuthoritative(this.app);
+        const events = await approvedProposalEvents(this.proposalRequest, ops, this.app.state.events);
+        this.app.stage(...events);
+        this.proposals = null;
+        if (this.text === this.proposalRequest.freeText) this.text = '';
+        toast(`Staged ${plural(ops.length, 'change')}. Review and publish when ready.`);
+        this.app.go('board');
+      } catch (error) { this.error = error.message; this.app.refresh(); }
     });
 
     return el('div', { class: 'card' },

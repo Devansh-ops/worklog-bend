@@ -22,9 +22,11 @@
  */
 
 import { makeEvent, newTaskId, todayISO, localDate, localTime } from './store.js';
-import { PROVIDERS, DEFAULT_PROVIDER } from './providers.js';
+import { PROVIDERS, DEFAULT_PROVIDER, endpointUrl } from './providers.js';
 import { browserChat, listBrowserModels } from './webllm.js';
 import { ruleOperations, ruleSummary } from './rules.js';
+import { canonicalJSON, parseJSON } from './codec.js';
+import { policyContext, createRequest, requestTransport, assertRequestCurrent } from './request.js';
 
 /** Fallback list when an endpoint cannot be asked what it serves. */
 export const suggestedFor = (providerId) => [...(PROVIDERS[providerId] || PROVIDERS[DEFAULT_PROVIDER]).suggested];
@@ -52,7 +54,7 @@ export async function listModels(ep) {
   }
   if (!ep?.baseUrl) return fallback;
   try {
-    const res = await fetch(`${ep.baseUrl}/models`, { headers: authHeaders(ep) });
+    const res = await fetch(endpointUrl(ep, 'models'), { headers: authHeaders(ep), redirect: 'error' });
     if (!res.ok) return fallback;
     const j = await res.json();
     const ids = (j.data || j.models || []).map((m) => m.id || m.name).filter(Boolean);
@@ -123,7 +125,9 @@ const wantsMaxCompletionTokens = (body) => /max_completion_tokens/.test(String(b
  * One chat completion, degrading response_format until the endpoint accepts it.
  * Returns raw assistant text.
  */
-async function chat(ep, messages, { schema = null, maxTokens = 1600, temperature = 0.2, onProgress } = {}) {
+async function chat(request, { onProgress } = {}) {
+  const ep = requestTransport(request);
+  const { messages, schema, maxTokens, temperature } = request;
   if (!ep || ep.kind === 'none') {
     throw new AIError('AI is turned off. Pick a provider in Settings — including one that runs entirely on your own machine.');
   }
@@ -159,6 +163,7 @@ async function chat(ep, messages, { schema = null, maxTokens = 1600, temperature
   // Bounded: each pass either advances the format or drops a param, both finite.
   for (let guard = 0; guard < formats.length + DROPPABLE_PARAMS.length + 2; guard++) {
     if (fi >= formats.length) break;
+    assertRequestCurrent(request);
 
     const body = {
       model: ep.model,
@@ -170,10 +175,11 @@ async function chat(ep, messages, { schema = null, maxTokens = 1600, temperature
 
     let res;
     try {
-      res = await fetch(`${ep.baseUrl}/chat/completions`, {
+      res = await fetch(endpointUrl(ep, 'chat/completions'), {
         method: 'POST',
         headers: { ...authHeaders(ep), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        redirect: 'error',
       });
     } catch {
       // A blocked cross-origin request is indistinguishable from being offline here,
@@ -185,9 +191,11 @@ async function chat(ep, messages, { schema = null, maxTokens = 1600, temperature
     }
 
     if (res.ok) {
-      const j = await res.json();
+      let j;
+      try { j = await res.json(); }
+      catch { throw new AIError('The provider returned malformed JSON.', { retryable: true }); }
       const text = j.choices?.[0]?.message?.content;
-      if (!text) throw new AIError('The model returned an empty response. Try again or pick another model.', { retryable: true });
+      if (typeof text !== 'string' || !text.trim()) throw new AIError('The model returned an empty or unsupported response. Try again or pick another model.', { retryable: true });
       return text;
     }
 
@@ -217,13 +225,14 @@ async function chat(ep, messages, { schema = null, maxTokens = 1600, temperature
  * asked not to. Falls back to the outermost balanced braces.
  */
 export function parseJSONLoose(text) {
+  if (typeof text !== 'string' || text.length > 1000000) throw new AIError('The model response is not bounded JSON text.', { retryable: true });
   const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  try { return JSON.parse(cleaned); } catch { /* fall through */ }
+  try { return parseJSON(cleaned); } catch { /* fall through */ }
 
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start !== -1 && end > start) {
-    try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { /* fall through */ }
+    try { return parseJSON(cleaned.slice(start, end + 1)); } catch { /* fall through */ }
   }
   throw new AIError('The model did not return usable JSON. Try again, or choose a different model in Settings.', { retryable: true });
 }
@@ -305,14 +314,11 @@ Rules:
  * Turn a free-text update into proposed board operations.
  * Returns proposals for review — it never mutates anything.
  */
-export async function proposeOperations({ endpoint, tasks, text, includeNotes = true, onProgress }) {
+export async function prepareOperationsRequest({ endpoint, events, text, includeNotes = true, readCurrent = null }) {
   if (!text || !text.trim()) throw new AIError('Nothing to interpret — write an update first.');
-
-  // The demo interpreter joins here rather than inside chat(), because it works on the
-  // structured board instead of a prompt -- and it goes through the same sanitiser, so
-  // the review UI cannot tell which of the two produced what it is showing.
-  if (endpoint?.kind === 'rules') return sanitiseOperations(ruleOperations({ tasks, text }), tasks);
-
+  const expectedRevision = readCurrent ? canonicalJSON(readCurrent()) : null;
+  const context = await policyContext({ events, includeNotes });
+  const tasks = context.tasks;
   const user = [
     `Today is ${todayISO()} (the engineer's local date).`,
     '',
@@ -320,16 +326,24 @@ export async function proposeOperations({ endpoint, tasks, text, includeNotes = 
     JSON.stringify(boardPayload(tasks, { includeNotes }), null, 1),
     '',
     "The engineer's update:",
-    text.trim(),
+    text,
   ].join('\n');
-
-  const raw = await chat(endpoint, [
+  return createRequest({ endpoint, purpose: 'operations', tasks, includeNotes, freeText: text,
+    readCurrent, expectedRevision, messages: [
     { role: 'system', content: OPS_SYSTEM },
     { role: 'user', content: user },
-  ], { schema: OPERATIONS_SCHEMA, temperature: 0.1, onProgress });
+  ], schema: OPERATIONS_SCHEMA, temperature: 0.1 });
+}
+
+export async function proposeOperations({ request, endpoint, events, tasks = [], text, includeNotes = true, onProgress }) {
+  const prepared = request || await prepareOperationsRequest({ endpoint, events: events || [], text, includeNotes });
+  const ep = requestTransport(prepared);
+  if (ep.kind === 'rules') return sanitiseOperations(ruleOperations({ tasks: prepared.tasks, text: prepared.freeText }), prepared.tasks);
+  const raw = await chat(prepared, { onProgress });
 
   const parsed = parseJSONLoose(raw);
-  return sanitiseOperations(parsed.operations || [], tasks);
+  assertRequestCurrent(prepared);
+  return sanitiseOperations(parsed.operations || [], prepared.tasks);
 }
 
 /**
@@ -338,13 +352,13 @@ export async function proposeOperations({ endpoint, tasks, text, includeNotes = 
  * a bad enum must not corrupt the board.
  */
 export function sanitiseOperations(ops, tasks) {
-  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const byId = new Map(tasks.filter(t => !t.private && !t.deleted).map((t) => [t.id, t]));
   const out = [];
 
   for (const o of Array.isArray(ops) ? ops : []) {
     if (!o || typeof o !== 'object') continue;
     const op = String(o.op || '').toLowerCase();
-    const clean = { op, rationale: typeof o.rationale === 'string' ? o.rationale : '' };
+    const clean = { op, rationale: typeof o.rationale === 'string' ? o.rationale.slice(0, 300) : '' };
 
     if (op === 'create') {
       if (!o.title || !String(o.title).trim()) continue;
@@ -439,9 +453,11 @@ const MORNING_DAYS = 7;
  * the day boundary is the local one (see store.localDate).
  */
 export function summaryWindow(events, kind, { today = todayISO(), days = MORNING_DAYS } = {}) {
-  const evs = (events || []).filter((e) => e.type !== 'summary.set');
+  const evs = (events || []).filter((e) => e.type?.startsWith('task.'));
   if (kind === 'morning') {
-    const from = localDate(new Date(`${today}T12:00:00`).getTime() - days * 86400000);
+    const boundary = new Date(`${today}T12:00:00`);
+    boundary.setDate(boundary.getDate() - days);
+    const from = localDate(boundary);
     return evs.filter((e) => { const d = localDate(e.ts); return d < today && d >= from; });
   }
   return evs.filter((e) => localDate(e.ts) === today);
@@ -451,16 +467,18 @@ export function summaryWindow(events, kind, { today = todayISO(), days = MORNING
  * Generate a summary.
  * @param {'morning'|'evening'} kind morning reports standing state; evening reports what moved.
  */
-export async function summarise({ endpoint, tasks, events, kind = 'evening', previous = null, includeNotes = true, onProgress }) {
-  const today = todayISO();
-  const priv = new Set(tasks.filter((t) => t.private).map((t) => t.id));
-
-  const window = summaryWindow(events, kind, { today })
-    .filter((e) => !priv.has(e.taskId))
-    .map((e) => ({
-      on: localDate(e.ts), at: localTime(e.ts), type: e.type, taskId: e.taskId,
-      ...(e.to ? { to: e.to } : {}), ...(includeNotes && e.text ? { text: e.text } : {}),
-    }));
+export async function prepareSummaryRequest({ endpoint, events, kind = 'evening', includeNotes = true, readCurrent = null, today = todayISO() }) {
+  if (!['morning', 'evening'].includes(kind)) throw new AIError('Unknown summary period.');
+  const expectedRevision = readCurrent ? canonicalJSON(readCurrent()) : null;
+  const start = new Date(`${today}T12:00:00`), end = new Date(`${today}T12:00:00`);
+  if (kind === 'morning') { start.setDate(start.getDate() - MORNING_DAYS); end.setDate(end.getDate() - 1); }
+  const context = await policyContext({ events, includeNotes, startDay: localDate(start), endDay: localDate(end) });
+  const tasks = context.tasks;
+  const window = context.events.map(event => ({
+    on: event.day, at: localTime(event.ts), type: event.kind, taskId: event.taskId,
+    ...(event.title ? { title: event.title } : {}), ...(event.status ? { to: event.status } : {}),
+    ...(event.text ? { text: event.text } : {}),
+  }));
 
   const focus = kind === 'morning'
     ? 'Report where things STAND at the start of today: what is in flight, what is blocked, what has gone stale. Suggest a focus for today. The events below are from BEFORE today — today has not happened yet, so do not describe it as if it had.'
@@ -469,13 +487,6 @@ export async function summarise({ endpoint, tasks, events, kind = 'evening', pre
   const label = kind === 'morning'
     ? `Events from the ${MORNING_DAYS} days before today (${window.length})`
     : `Events logged today (${window.length})`;
-
-  if (endpoint?.kind === 'rules') {
-    return clampSummary(
-      ruleSummary({ tasks: tasks.filter((t) => !t.private && !t.deleted), events: window, kind }),
-      tasks,
-    );
-  }
 
   const user = [
     `Today is ${today} (the engineer's local date; times below are local too). This is the ${kind} summary.`,
@@ -486,15 +497,21 @@ export async function summarise({ endpoint, tasks, events, kind = 'evening', pre
     '',
     `${label}:`,
     window.length ? JSON.stringify(window, null, 1) : '(none)',
-    ...(previous?.headline ? ['', `Previous summary said: ${previous.headline}`] : []),
   ].join('\n');
-
-  const raw = await chat(endpoint, [
+  return createRequest({ endpoint, purpose: `summary:${kind}`, tasks, activity: window, includeNotes,
+    readCurrent, expectedRevision, messages: [
     { role: 'system', content: SUMMARY_SYSTEM },
     { role: 'user', content: user },
-  ], { schema: SUMMARY_SCHEMA, temperature: 0.3, onProgress });
+  ], schema: SUMMARY_SCHEMA, temperature: 0.3 });
+}
 
-  return clampSummary(parseJSONLoose(raw), tasks);
+export async function summarise({ request, endpoint, events = [], kind = 'evening', includeNotes = true, onProgress }) {
+  const prepared = request || await prepareSummaryRequest({ endpoint, events, kind, includeNotes });
+  const ep = requestTransport(prepared);
+  if (ep.kind === 'rules') return clampSummary(ruleSummary({ tasks: prepared.tasks, events: prepared.activity, kind }), prepared.tasks);
+  const raw = await chat(prepared, { onProgress });
+  assertRequestCurrent(prepared);
+  return clampSummary(parseJSONLoose(raw), prepared.tasks);
 }
 
 /**
@@ -505,6 +522,12 @@ export async function summarise({ endpoint, tasks, events, kind = 'evening', pre
  * one clamp is easier to trust than two.
  */
 function clampSummary(p, tasks) {
+  if (!p || typeof p !== 'object' || Array.isArray(p) || typeof p.headline !== 'string' || !p.headline.trim()
+    || !Array.isArray(p.bullets) || !Array.isArray(p.risks) || !Array.isArray(p.next)
+    || p.bullets.some(b => !b || typeof b !== 'object' || typeof b.text !== 'string' || !Array.isArray(b.taskIds))
+    || p.risks.some(value => typeof value !== 'string') || p.next.some(value => typeof value !== 'string')) {
+    throw new AIError('The model returned a malformed summary. Nothing was staged.', { retryable: true });
+  }
   const known = new Set(tasks.map((t) => t.id));
   return {
     headline: String(p?.headline || '').slice(0, 200),
@@ -653,12 +676,15 @@ function standupShots() {
  *
  * @returns {Promise<Array<{project: string, lines: string[]}>>}
  */
-export async function writeStandup({ endpoint, payload, draft = '', includeNotes = true, onProgress }) {
-  const items = Array.isArray(payload) ? payload : [];
-  const keep = String(draft || '').trim();
+export async function prepareStandupRequest({ endpoint, events, kind = 'evening', date = todayISO(), includePlan = true,
+  draft = '', includeNotes = true, readCurrent = null }) {
+  const expectedRevision = readCurrent ? canonicalJSON(readCurrent()) : null;
+  const { reportContext } = await import('./domain.js');
+  const projected = reportContext(events, includeNotes !== false, { date, kind, includePlan });
+  const items = projected.map(item => ({ project: item.project, task: item.task,
+    ...(item.didToday?.length ? { didToday: item.didToday.join('; ') } : {}) }));
+  const keep = String(draft || '');
   if (!items.length && !keep) throw new AIError('Nothing logged for today, so there is nothing to write up.');
-
-  if (endpoint?.kind === 'rules') return ruleStandup(items, keep);
 
   // A draft means the engineer has already written something, and their words beat
   // ours: the job becomes tidying what they wrote and filling in what they missed.
@@ -677,13 +703,24 @@ export async function writeStandup({ endpoint, payload, draft = '', includeNotes
     ].join('\n')
     : JSON.stringify(items);
 
-  const raw = await chat(endpoint, [
+  return createRequest({ endpoint, purpose: `standup:${kind}`, activity: items, includeNotes, freeText: keep,
+    readCurrent, expectedRevision, messages: [
     { role: 'system', content: STANDUP_SYSTEM },
     ...standupShots(),
     { role: 'user', content: ask },
-  ], { schema: STANDUP_SCHEMA, temperature: 0.4, onProgress });
+  ], schema: STANDUP_SCHEMA, temperature: 0.4 });
+}
 
-  return clampStandup(parseJSONLoose(raw), items, { includeNotes, draft: keep });
+export async function writeStandup({ request, endpoint, payload = [], draft = '', includeNotes = true, onProgress }) {
+  // Preserve the explicitly local formatting utility for callers without a model.
+  // Automatic network context must always come from prepareStandupRequest.
+  if (!request && endpoint?.kind === 'rules') return ruleStandup(payload, draft);
+  if (!request) throw new AIError('Nothing prepared for the model. Prepare a report from authoritative history first.');
+  const ep = requestTransport(request);
+  if (ep.kind === 'rules') return ruleStandup(request.activity, request.freeText);
+  const raw = await chat(request, { onProgress });
+  assertRequestCurrent(request);
+  return clampStandup(parseJSONLoose(raw), request.activity, { includeNotes: request.includeNotes, draft: request.freeText });
 }
 
 /**
@@ -793,6 +830,25 @@ export function opsToEvents(ops) {
     }
   }
   return events;
+}
+
+/** Revalidate selected model proposals against the current compiled domain. */
+export async function approvedProposalEvents(request, operations, events) {
+  assertRequestCurrent(request);
+  const { validateProposal } = await import('./domain.js');
+  assertRequestCurrent(request);
+  const allowed = new Set(request.tasks.map(task => task.id));
+  const selected = Array.isArray(operations) ? operations : [];
+  if (selected.some(operation => operation.op !== 'create' && !allowed.has(operation.taskId))) throw new AIError('A selected proposal targets a task outside this request. Interpret the update again.');
+  const clean = sanitiseOperations(selected.map(operation => operation.op === 'edit' ? { ...operation, ...operation.fields } : operation), request.tasks);
+  if (clean.length !== selected.length) throw new AIError('A selected proposal is no longer valid. Interpret the update again.');
+  const accepted = [], history = [...events];
+  for (const event of opsToEvents(clean)) {
+    accepted.push(validateProposal(history, event));
+    history.push(event);
+  }
+  assertRequestCurrent(request);
+  return accepted;
 }
 
 /** Record a generated summary in the log, so it lands in the repo alongside the work. */

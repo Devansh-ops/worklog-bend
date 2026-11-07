@@ -8,10 +8,11 @@
  * repo next to the work it describes rather than living only in this browser.
  */
 import { todayISO } from '../store.js';
-import { summarise, summaryEvent, AIError } from '../ai.js';
+import { summarise, prepareSummaryRequest, summaryEvent, AIError } from '../ai.js';
+import { appRevision, requireAuthoritative } from '../request.js';
 import { endpointProblem } from '../providers.js';
 import { el, clear, notice, spinner, toast, shortTime, confirm } from './dom.js';
-import { confirmCloudSend } from './consent.js';
+import { confirmCloudSend, requestDetails } from './consent.js';
 
 export class SummaryView {
   constructor(app) {
@@ -33,6 +34,7 @@ export class SummaryView {
         el('strong', { text: 'morning' }), ' summary says where things stand; an ',
         el('strong', { text: 'evening' }), ' one says what moved.'),
       this.app.onRules ? notice('info', 'Written by the demo interpreter — a tally composed from the board and the day\'s events by keyword rules, not a model. A real provider says what it means rather than what it counts.') : null,
+      requestDetails(this.request),
       this.error ? notice('error', this.error) : null,
       el('div', { class: 'row', style: 'margin-top:12px' },
         this.button('morning', 'Morning summary', forToday.morning),
@@ -151,13 +153,15 @@ export class SummaryView {
     const existing = this.app.state.summaries[today]?.[kind];
     if (existing && !await this.confirmReplace(kind, existing)) return;
 
-    // No free text here, so this only discloses the board payload -- but it is still
-    // the first thing that leaves, and the count of what leaves is worth seeing once.
-    if (!await confirmCloudSend({
-      endpoint,
-      tasks: this.app.tasks,
-      includeNotes: this.app.settings.sendNotes,
-    })) return;
+    let request;
+    try {
+      requireAuthoritative(this.app);
+      request = await prepareSummaryRequest({ endpoint, events: this.app.state.events, kind,
+        includeNotes: this.app.settings.sendNotes !== false, readCurrent: () => appRevision(this.app) });
+      this.request = request;
+      this.app.refresh();
+      if (!await confirmCloudSend({ request })) return;
+    } catch (error) { this.error = error.message; this.app.refresh(); return; }
 
     this.busy = kind;
     this.error = null;
@@ -166,12 +170,8 @@ export class SummaryView {
 
     try {
       const summary = await summarise({
-        endpoint,
-        tasks: this.app.tasks,
-        events: this.app.state.events,
+        request,
         kind,
-        previous: this.previousSummary(kind, today),
-        includeNotes: this.app.settings.sendNotes,
         onProgress: ({ text, progress }) => {
           this.progressEl.textContent = `${text}${progress ? ` (${Math.round(progress * 100)}%)` : ''}`;
         },
