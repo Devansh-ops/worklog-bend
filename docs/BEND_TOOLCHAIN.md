@@ -52,8 +52,11 @@ The real `--verdict` path was also executed in WSL with Lean 4.34.0 and accepted
 the true fixture using the compiled BendTT kernel. It is a separate check;
 standard checker success alone does not establish a kernel verdict. An initial
 native Windows verdict attempt failed explicitly because Lean was missing.
-The complete reproducible verdict helper and CI gate are tracked separately;
-the integration status decides Phase 1 acceptance.
+The complete standard and verdict harness subsequently passed with the same
+expected exits, followed by the emitted JavaScript ABI checks. Exact generated
+bridge SHA-256 was `4e6491828542d86e07075ff8b43c2daa91f6bfdcbe92d6a3e710602aba575e41`.
+CI is configured in `.github/workflows/bend-toolchain.yml`; a local execution
+does not imply that a hosted CI run has completed.
 
 The bridge smoke compiles `toolchain/smoke/bridge.bend` into
 `.toolchain/bridge.mjs` and imports that exact output. It verifies Unicode,
@@ -98,3 +101,35 @@ its binder. Arithmetic needs explicit type annotation, e.g. `(x + 1 : U32)`.
 in `PROOF.bend`; these small fixtures validate tooling only. No application
 privacy, merge, checkpoint, publication or compatibility law has been proved by
 these smoke checks.
+
+## Reproduce the independent kernel check
+
+The pinned Linux x64 proof-tool archives total approximately 620 MB compressed.
+The installer verifies both SHA-256 values, including before extraction. It
+needs Ubuntu's Python 3.11 or later, system libzstd, and tar. It installs into
+`$HOME/.cache/worklog-bend-proof` in Ubuntu; set `WORKLOG_PROOF_CACHE` to choose
+another persistent dedicated cache. No apt, pip, elan, or global PATH edit is
+required. `/tmp` was unsuitable on this host because it was cleaned between WSL
+starts, so the helper deliberately uses a persistent cache.
+
+From the Windows checkout:
+
+```powershell
+node scripts/install-proof-tools.mjs
+wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test && sh scripts/test-bend-verdict.sh'
+```
+
+Adapt the checkout path for another machine. On a Linux checkout, execute
+`node scripts/install-bend.mjs`, `node scripts/install-proof-tools.mjs`, then
+`sh scripts/test-bend-verdict.sh`. The helper uses the locked Linux Bun binary to
+run the JavaScript harness, including compilation, so no separate Linux Node
+installation is needed for the proof invocation. The wrapper still validates
+the Bun version and every compiler source byte. The exact Lean version is
+checked by both bootstrap and the upstream kernel builder.
+
+The compiler wrapper resolves input files from the caller's current directory,
+while its own source and caches remain anchored beside the wrapper. Agents in
+another worktree can invoke `node <toolchain-worktree>/scripts/bend.mjs PROOF.bend`
+from their own directory. Prefer relative input filenames in Windows because
+the pinned compiler's imported-path handling was not assumed portable for
+drive-qualified absolute inputs.

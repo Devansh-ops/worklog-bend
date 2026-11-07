@@ -1,0 +1,2 @@
+# WSL and Linux must be able to execute shell helpers from Windows checkouts.
+*.sh text eol=lf

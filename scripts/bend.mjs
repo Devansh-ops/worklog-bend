@@ -22,7 +22,7 @@ const config = resolve(home, 'empty-bunfig.toml');
 await writeFile(config, '# Deliberately empty project compiler configuration.\n');
 const args = process.argv.slice(2);
 const result = spawnSync(bun, ['--no-env-file', `--config=${config}`, resolve(root, '.toolchain/bend/bend2/main.ts'), ...args], {
-  cwd: root, stdio: 'inherit', env: { ...process.env, USERPROFILE: home, HOME: home, BEND_NO_TELEMETRY: '1' },
+  cwd: process.cwd(), stdio: 'inherit', env: { ...process.env, USERPROFILE: home, HOME: home, BEND_NO_TELEMETRY: '1' },
 });
 if (result.error) throw result.error;
 process.exit(result.status ?? 1);
