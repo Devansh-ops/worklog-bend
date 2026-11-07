@@ -132,8 +132,8 @@ export async function runSetup(argv, deps = {}) {
     }
     const plan = immutableJSON({ target: slug, branch, base, create: !metadata, private: metadata ? metadata.private : o.private, message: 'worklog: initialise data repo\n\nScaffolding created by the work log app.\n', files, retained });
     print(`Destination: ${slug} on ${branch}\nBase: ${base || 'new root commit'}\nVisibility: ${plan.private ? 'private' : 'public'}\nCreate: ${plan.create ? 'yes' : 'existing repository'}\nMessage:\n${plan.message}`);
-    for (const f of files) print(`===== ${f.path} =====\n${f.text}`);
-    if (retained.length) print(`Unchanged existing files: ${retained.join(', ')}`);
+    for (const f of plan.files) print(`===== ${f.path} =====\n${f.text}`);
+    if (plan.retained.length) print(`Unchanged existing files: ${plan.retained.join(', ')}`);
     if (o.dryRun) { print('Dry run: no repository was created or pushed.'); return { dryRun: true, plan }; }
     let yes = o.yes;
     if (!yes) {
@@ -145,7 +145,7 @@ export async function runSetup(argv, deps = {}) {
     if (base && (await git(['rev-parse', 'HEAD'])).stdout.trim() !== base) throw new Error('Local base changed after preview.');
     if ((await git(['status', '--porcelain', '-z'])).stdout) throw new Error('Prepared checkout changed after preview.');
     retain = true;
-    for (const f of files) {
+    for (const f of plan.files) {
       await parents(checkout, f.path); await fs.mkdir(dirname(join(checkout, f.path)), { recursive: true }); await fs.writeFile(join(checkout, f.path), f.text);
       const blob = (await git(['hash-object', '-w', '--stdin'], f.text)).stdout.trim();
       await git(['update-index', '--add', '--cacheinfo', '100644', blob, f.path]);
