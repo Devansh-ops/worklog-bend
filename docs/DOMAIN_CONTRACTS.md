@@ -1,6 +1,6 @@
 # Domain and law contract review
 
-Reviewed 2026-11-07 against upstream `53bff74016df38a9c88f6cf94c7b556225dd79fb` and the preserved JavaScript source. This is preparatory requirements review. Phase 1 remains a prerequisite for accepted Bend contracts; nothing here is a compiler-checked law or completed runtime fix.
+Reviewed 2026-11-07 against upstream `53bff74016df38a9c88f6cf94c7b556225dd79fb` and the preserved JavaScript source. This is the original requirements review. References below to existing faults describe the upstream source at that revision. Current implemented behavior and executed proof/test evidence are recorded in STATUS.md, LAW_REVIEW.md and FEATURE_MATRIX.md; this review itself is not a compiler verdict.
 
 ## Model boundary
 

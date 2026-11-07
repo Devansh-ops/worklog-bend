@@ -14,7 +14,7 @@ Updated: 2026-11-08. The restoration is complete. The rebuilt application is run
 
 Bend 2.0.40 is pinned to `70607d7f740e3b3f4a1edc61069df8ab88491696`, with SHA-256 checked sources, Bun 1.3.10 and Lean 4.34.0. Real checker/verdict positive and false/open/nonterminating negative fixtures passed their expected outcomes. Native Windows has a compiler import-path defect; all application module builds and independent kernel checks use the verified WSL route. The compiler was not patched.
 
-The application now uses generated Bend for collision-aware merge, authoritative replay, command/proposal acceptance, completion metadata, deletion tombstones, privacy projections, report selection, reminders, board sorting/search, wiki indexes and publication approval. JavaScript retains JSON/Unicode/timezone codecs, DOM/text formatting, storage, WebCrypto, HTTP, clipboard, provider and worker effects. Static generated modules and their reproducible integrity manifest ship with the app.
+The application now uses generated Bend for collision-aware merge, authoritative replay, command/proposal acceptance, completion metadata, deletion tombstones, privacy projections, report selection, reminders, board sorting/search, wiki indexes month publication/migration planning and publication approval. JavaScript retains JSON/Unicode/timezone codecs, DOM/text formatting, storage, WebCrypto, HTTP, clipboard, provider and worker effects. Static generated modules and their reproducible integrity manifest ship with the app.
 
 Legacy snapshots do not establish coverage. Complete Git tree indexing discovers unlisted month sources; every cached body is verified against the pinned remote blob hash. Full canonical replay includes late events, deleted privacy provenance and reports. A synthetic 1,000-month adapter check needed 1,002 initial body reads, zero unchanged, and three after three files changed. This is verified source caching, not an unproved incremental snapshot shortcut.
 
@@ -24,7 +24,7 @@ AI UI flows disclose and send one immutable request, use current Bend eligibilit
 
 ## Acceptance evidence
 
-- `npm --loglevel verbose test`: 13 runtime/adapter suites passed. Includes 48 inherited suite executions across four time zones with 1,004 assertions, plus real Node CLI, strict codecs, generated Bend, store/cache/setup and provider regressions.
+- `npm --loglevel verbose test`: 16 runtime/adapter suites passed. Includes 48 inherited suite executions across four time zones with 1,004 assertions, plus real Node CLI, strict codecs, generated Bend, store/cache/setup and provider regressions.
 - Root `PROOF.bend --verdict`: accepted by the real Lean-backed kernel. Checked families include completion, deletion/privacy, notes-off, exact pending acknowledgement, unsupported schemas, exact full-plan equality, successful general-merge input-ID membership, full event equality and reminder guards. See `LAW_REVIEW.md` for exact statements and exclusions.
 - Mutation checks deliberately break production policies and require named law failures. Missing compilers or infrastructure errors cannot count as successful rejection.
 - Real Chromium 149.0.7827.55 / Playwright 1.61.0 checks cover 400px and wide layouts, task edits/focus/safe text, setup, exact publication Cancel/conflict/success/reload, selected proposals, summary, clipboard failure/success, exact copied report retrieval, wiki/deletion and once-per-day reminders.
@@ -35,6 +35,15 @@ Detailed commands and limits: `BEND_TOOLCHAIN.md`, `CORE_ABI.md`, `FEATURE_MATRI
 
 ## Remaining acceptance work
 
-Phase 1 tooling is established and Phase 2 contracts have reviewed witnesses. Phase 3 remains open for the complete universal canonical-merge algebra, uniqueness/order and arbitrary-position collision completeness, plus the remaining replay/refinement obligations recorded in `LAW_REVIEW.md`. Independent order, sort and membership proofs are being developed in separate worktrees. Finite runtime examples are not substituted for those proofs. Later implementation is runnable and tested, but final phase acceptance remains dependent on this proof gate.
+Phase 1 tooling is established and Phase 2 contracts have reviewed witnesses. Phase 3 remains open for the complete universal canonical-merge algebra, algebra and final replay/planning wrappers, plus the remaining replay/refinement obligations recorded in `LAW_REVIEW.md`. Independent order, sort and membership proofs are being developed in separate worktrees. Finite runtime examples are not substituted for those proofs. Later implementation is runnable and tested, but final phase acceptance remains dependent on this proof gate.
 
-Final hosted CI, fresh-clone build and pushed-main equality must be recorded after the final integration. Real GPU model execution, live AI provider authentication/CORS and OS default-browser launching were not executed and are not claimed as passing. The existing worker/provider features are retained and their tested boundary scope is documented.
+Hosted Ubuntu CI passed every stage for `4d75201` and `d9802e6`:
+[first run](https://github.com/Devansh-ops/worklog-bend/actions/runs/42409932931),
+[planner integration](https://github.com/Devansh-ops/worklog-bend/actions/runs/42410251812).
+A fresh GitHub clone of `d9802e6` downloaded and hash-verified compiler/proof tools,
+passed root and Planning verdicts, and reproduced every shipped asset exactly.
+Final integration and remote equality will be verified again.
+
+An independent review reproduced a multi-tab pending overwrite: a stale tab can
+replace another tab's saved draft. Recovery-safe persistence is being implemented
+and is a release blocker until its regression gate passes. Real GPU model execution, live AI provider authentication/CORS and OS default-browser launching were not executed and are not claimed as passing. The existing worker/provider features are retained and their tested boundary scope is documented.
