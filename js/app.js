@@ -825,9 +825,10 @@ class App {
 
     const writing = dialog({ title: 'Upgrading', body: spinner('Committing the new layout…'), dismissable: false });
     try {
-      await this.store.migrate(plan);
+      const result = await this.store.migrate(plan);
       writing.close(true);
       toast('Layout upgraded. The repo now renders as markdown on GitHub.');
+      if (result.warning) toast(result.warning, 'error');
     } catch (e) {
       writing.close(true);
       dialog({ title: 'Upgrade failed', body: notice('error', `${e.message} Nothing was lost — your events are still committed where they were.`), buttons: [{ label: 'Close', value: true }] });
