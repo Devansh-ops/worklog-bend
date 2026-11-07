@@ -41,3 +41,22 @@ It returned exit 0 and `ALL PROOFS CHECK`. An isolated deliberately unsorted dis
 A first generic formulation used a dependent template proof callback for transitivity. The standard checker accepted it, but BendTT reported an unsupported template model. The committed theorem avoids that unsupported route by referring directly to the independently proved, actual production ID comparator. No compiler or sorting algorithm was patched and no verdict gate was waived.
 
 This module does not yet prove chronological `(timestamp,id)` sort ordering, full scan uniqueness, collision completeness, canonical output uniqueness or merge associativity/commutativity/idempotence. The root law review tracks those obligations. Input/output membership is established by the separate generic membership module. None of these proof results certifies JavaScript emission, JSON, storage, browser behavior or GitHub effects.
+
+## Addendum: actual chronological ordering
+
+The additive `proof/ChronologicalSort.bend` now establishes the corresponding universal statement for actual production `Core.event_le`, whose key is timestamp followed by event ID. Its public API is:
+
+```text
+ChronologicalSort.sort_ordered(xs):
+  Sort.ordered(Core.event_le, Base.List.sort(Core.event_le, xs)) = True
+```
+
+This uses the same `Sort.ordered` predicate as the ID theorem and accepts arbitrary typed event lists without assuming input order or consistency. The actual timestamp/ID selector is connected to `Order.lex_le` by a checked Boolean-selector bridge. It does not rely on an invalid neutral-term definitional-equality shortcut. Independent lexicographic support comes from Order commit `77c98b7`, following scalar order commit `28a4dae`.
+
+`time_trans`, `time_total` and `time_reflexive` establish the actual comparator's preorder laws. `time_id_equal` and `time_stamp_equal` show that mutual chronological order gives equal ID and timestamp keys, respectively. They do not infer equality of the remaining event payload or canonical content from keys alone.
+
+The module reuses comparator-independent Boolean, reverse-accumulator, arithmetic and list helpers from `Sort.bend`. Its merge, run and fuel induction follows the same previously reviewed argument while invoking the actual chronological comparator throughout. Concrete witnesses check both equal-time ID ties and timestamp priority over an oppositely ordered ID pair.
+
+The executed positive command replaced `proof/Sort.bend` above with `proof/ChronologicalSort.bend` and returned `ALL PROOFS CHECK`, exit 0, through the real verdict kernel. An isolated `tmp/chronological-negative.bend` claiming that the later timestamp may precede the earlier one was rejected with an equality mismatch and exit 1.
+
+Together these two modules prove ordering of both actual production sort passes. They still do not by themselves establish full scan uniqueness, conflict completeness, canonical-output extensional uniqueness, or the associative/commutative/idempotent merge laws. Those remain distinct root obligations until their proofs are checked.
