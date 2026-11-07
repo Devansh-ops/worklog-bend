@@ -10,6 +10,9 @@ import ./proof/Unique.bend as Unique
 import ./proof/Sort.bend as Sort
 import ./proof/ChronologicalSort.bend as ChronologicalSort
 import ./proof/Canonical.bend as Canonical
+import ./bend/Planning.bend as Planning
+import ./proof/PlanningLaws.bend as PlanningLaws
+import ./proof/Replay.bend as Replay
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -1732,3 +1735,51 @@ def CommandProof.proposed(result: T.StageResult, +existing: List<&2, T.DomainEve
 def Laws.accepted_command_has_complete_prospective_replay(existing, input, accepted, acceptance):
   %acceptance : Laws.AcceptedComplete(_, existing)
   CommandProof.proposed(Core.stage_unique(input, existing, Core.ids_contains(existing, Core.event_id(input))), existing)
+
+def Laws.generated_month_plan_preserves_source_coverage(schemas, sources, pending, current, migration):
+  PlanningLaws.plan_safe(schemas, sources, pending, current, migration)
+
+def Laws.unsupported_plan_schema_has_no_writes(schemas, sources, pending, current, migration, incompatible):
+  PlanningLaws.incompatible_no_writes(schemas, sources, pending, current, migration, incompatible)
+
+def Laws.month_partition_uses_supplied_local_month(events, month):
+  PlanningLaws.partition_matches(events, month)
+
+def Laws.nonempty_legacy_migration_is_accepted():
+  PlanningLaws.nonempty_migration_witness()
+
+def Laws.lost_legacy_event_prevents_deletion():
+  PlanningLaws.lost_legacy_rejected_witness()
+
+def Laws.replay_fold_composes_over_append(left, right, state):
+  Replay.fold_append(left, right, state)
+
+def Laws.canonical_coverage_recovers_authoritative_replay(covered, incoming, full, coverage):
+  Replay.recovery_refines_full(covered, incoming, full, coverage)
+
+def Laws.note_preserves_task_status(task, note, instant):
+  Replay.note_keeps_status(task, note, instant)
+
+def Laws.note_preserves_task_completion(task, note, instant):
+  Replay.note_keeps_completion(task, note, instant)
+
+def Laws.latest_folded_record_replaces_same_key(records, record):
+  Replay.latest_record(records, record)
+
+def Laws.latest_folded_summary_is_retained(state, record):
+  Replay.latest_summary(state, record)
+
+def Laws.latest_folded_report_is_retained(state, record):
+  Replay.latest_report(state, record)
+
+def Laws.backdated_note_recovery_preserves_later_status():
+  Replay.late_note_recovery_witness()
+
+def Laws.shuffled_full_history_recovers_exact_state():
+  Replay.full_private_replay_witness()
+
+def Laws.recovered_private_tombstone_is_absent_from_model_context():
+  Replay.private_context_witness()
+
+def Laws.recovered_private_tombstone_is_absent_from_history_context():
+  Replay.private_history_witness()

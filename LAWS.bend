@@ -9,6 +9,9 @@ import ./proof/Unique.bend as Unique
 import ./proof/Sort.bend as Sort
 import ./proof/ChronologicalSort.bend as ChronologicalSort
 import ./proof/Canonical.bend as Canonical
+import ./bend/Planning.bend as Planning
+import ./proof/PlanningLaws.bend as PlanningLaws
+import ./proof/Replay.bend as Replay
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -998,3 +1001,83 @@ def clock_forward_note() -> T.DomainEvent:
 
 law accepted_complete_command_exists:
   {Core.stage([clock_create()], clock_forward_note()) == T.StageAccepted{clock_forward_note()} : T.StageResult}
+
+law generated_month_plan_preserves_source_coverage:
+  for +schemas: List<&2, U32>
+  for +sources: List<&2, Planning.SourceMonth>
+  for +pending: List<&2, T.DomainEvent>
+  for +current: String
+  for +migration: Bool
+  {PlanningLaws.safe(Planning.plan(schemas, sources, pending, current, migration), schemas, sources, pending, migration) == True{} : Bool}
+
+law unsupported_plan_schema_has_no_writes:
+  for +schemas: List<&2, U32>
+  for +sources: List<&2, Planning.SourceMonth>
+  for +pending: List<&2, T.DomainEvent>
+  for +current: String
+  for +migration: Bool
+  for incompatible: {Publication.schemas_compatible(schemas) == False{} : Bool}
+  {Planning.writes(Planning.plan(schemas, sources, pending, current, migration)) == Nil{} : List<&2, Planning.MonthGroup>}
+
+law month_partition_uses_supplied_local_month:
+  for +events: List<&2, T.DomainEvent>
+  for +month: String
+  {Planning.matching_events(Planning.events_for_month(events, month), month) == True{} : Bool}
+
+law nonempty_legacy_migration_is_accepted:
+  {PlanningLaws.is_planned(Planning.plan([1], [Planning.SourceMonth{"2026-11", False{}, True{}, [PlanningLaws.witness_event()]}], Nil{}, "2026-11", True{})) == True{} : Bool}
+
+law lost_legacy_event_prevents_deletion:
+  {Planning.deletion_safe(Planning.MonthGroup{"2026-11", Nil{}, 0n, 0n, False{}, True{}, True{}, True{}}, [Planning.MonthGroup{"2026-10", Nil{}, 0n, 0n, False{}, False{}, True{}, False{}}], [Planning.SourceMonth{"2026-11", False{}, True{}, [PlanningLaws.witness_event()]}], True{}) == False{} : Bool}
+
+law replay_fold_composes_over_append:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for +state: T.State
+  {Core.fold_sorted(List.append(&2, T.DomainEvent, left, right), state) == Core.fold_sorted(right, Core.fold_sorted(left, state)) : T.State}
+
+law canonical_coverage_recovers_authoritative_replay:
+  for +covered: List<&2, T.DomainEvent>
+  for +incoming: List<&2, T.DomainEvent>
+  for +full: List<&2, T.DomainEvent>
+  for coverage: {Core.merge(covered, incoming) == Core.merge(full, Nil{}) : T.MergeResult}
+  {Core.reconcile(covered, incoming) == Core.replay(full) : T.ReplayResult}
+
+law note_preserves_task_status:
+  for +task: T.Task
+  for note: T.Note
+  for instant: String
+  {Replay.status(Core.note_task(task, note, instant)) == Replay.status(task) : T.Status}
+
+law note_preserves_task_completion:
+  for +task: T.Task
+  for note: T.Note
+  for instant: String
+  {Replay.completion(Core.note_task(task, note, instant)) == Replay.completion(task) : Maybe<&2, String>}
+
+law latest_folded_record_replaces_same_key:
+  for +records: List<&2, T.Recorded>
+  for +record: T.Recorded
+  {Replay.record_find(Core.put_record(records, record), record) == Some{record} : Maybe<&2, T.Recorded>}
+
+law latest_folded_summary_is_retained:
+  for state: T.State
+  for +record: T.Recorded
+  {Replay.record_find(Replay.summaries(Core.apply_summary(state, record)), record) == Some{record} : Maybe<&2, T.Recorded>}
+
+law latest_folded_report_is_retained:
+  for state: T.State
+  for +record: T.Recorded
+  {Replay.record_find(Replay.reports(Core.apply_report(state, record)), record) == Some{record} : Maybe<&2, T.Recorded>}
+
+law backdated_note_recovery_preserves_later_status:
+  {Core.reconcile([Replay.done(), Replay.created()], [Replay.noted()]) == T.Replayed{T.State{[Replay.expected_task(False{}, "2026-11-01T05:00:00.000Z")], Nil{}, Nil{}, Nil{}, True{}}} : T.ReplayResult}
+
+law shuffled_full_history_recovers_exact_state:
+  {Core.replay(Replay.shuffled_history()) == T.Replayed{Replay.expected_state()} : T.ReplayResult}
+
+law recovered_private_tombstone_is_absent_from_model_context:
+  {Replay.model_projection(Core.merge(Replay.shuffled_history(), Nil{}), True{}) == Nil{} : List<&2, T.ContextTask>}
+
+law recovered_private_tombstone_is_absent_from_history_context:
+  {Replay.history_projection(Core.merge(Replay.shuffled_history(), Nil{}), True{}, "2026-11-01", "2026-11-01") == Nil{} : List<&2, T.ContextEvent>}
