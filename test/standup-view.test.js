@@ -264,7 +264,10 @@ await checkAsync('writing it up AFTER editing keeps your text and re-reads the l
 
   // A card moves while the edit is sitting in the box.
   app.tasks = [...app.tasks, task('T-ccc333', 'late arrival', { tags: ['Ops'] })];
-  app.state.events = [...app.state.events, { ts: noonish(16), type: 'task.note', taskId: 'T-ccc333', text: 'picked this up late' }];
+  app.state.events = [...app.state.events,
+    { id: 'late-create', ts: noonish(15), type: 'task.create', taskId: 'T-ccc333', title: 'late arrival', status: 'todo', tags: ['Ops'] },
+    { id: 'late-note', ts: noonish(16), type: 'task.note', taskId: 'T-ccc333', text: 'picked this up late' },
+  ];
   app.state.lastEventTs = noonish(16);
 
   await v.writeUp();

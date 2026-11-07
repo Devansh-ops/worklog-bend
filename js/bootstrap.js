@@ -169,6 +169,11 @@ export async function prepareScaffold({ repo, state, isPrivate = true, withExamp
   const files = [];
   if (state === RepoState.UNSEEDED) expectedBase = await repo.pinRevision();
   const reader = Object.assign(Object.create(repo), { readRevision: expectedBase });
+  if (state === RepoState.UNSEEDED && reader.sourceIndex) {
+    const index = await reader.sourceIndex();
+    if (index.complete !== true || !Array.isArray(index.months) || !index.files || Array.isArray(index.files)) throw new Error('A complete source index is required before setup.');
+    if (index.months.length || Object.keys(index.files).some(path => [PATHS.manifest, PATHS.board].includes(path))) throw new Error('Setup found existing authoritative log sources. Preserve and inspect the partial log before setup.');
+  }
   for (const file of candidate.files) {
     const existing = state === RepoState.UNSEEDED ? await reader.getFile(file.path) : null;
     if (existing) {

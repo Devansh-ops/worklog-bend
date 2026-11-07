@@ -66,6 +66,13 @@ await check('partial existing data and changed base refuse without a destructive
   await assert.rejects(() => scaffold({ repo, plan }), ConflictError);
   assert.equal(repo.written, undefined);
 });
+await check('unlisted historical log sources prevent setup even outside the current candidate month', async () => {
+  const repo = new Repository();
+  repo.sourceIndex = async () => ({ complete: true, months: ['2020-01'], files: { 'data/log/2020/01.json': { sha: sha('c') } } });
+  await assert.rejects(() => prepareScaffold({ repo, state: RepoState.UNSEEDED, withExamples: false }), /authoritative log sources/);
+  assert.ok(!repo.calls.includes('commit'));
+  assert.equal(repo.written, undefined);
+});
 await check('ready inspection pins the revision before manifest reads', async () => {
   const repo = new Repository(); repo.files.set('data/manifest.json', '{}');
   repo.exists = async () => true; repo.info = async () => ({ visibility: 'private' }); repo.hasCommits = async () => true;
