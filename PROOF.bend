@@ -29,6 +29,12 @@ def Laws.collision_refusal_witness():
 def Laws.complete_content_merge_witness():
   {==}
 
+def Laws.clock_rollback_command_is_rejected():
+  {==}
+
+def Laws.accepted_complete_command_exists():
+  {==}
+
 def Laws.word_order_reflexive(n, w):
   match n:
     case 0n:
@@ -1697,3 +1703,32 @@ def ConflictProof.capture(result: T.MergeResult, +left: List<&2, T.DomainEvent>,
 
 def Laws.inconsistent_event_union_returns_conflict(left, right, a, b, sameId, different, present_a, present_b):
   ConflictProof.capture(Core.merge(left, right), left, right, a, b, sameId, different, present_a, present_b, {==})
+
+def CommandProof.complete(+event: T.DomainEvent, +state: T.State, existing: List<&2, T.DomainEvent>, valid: Bool,
+  actual: {valid == Core.complete(state) : Bool}, replayed: {Core.replay(List.append(&2, T.DomainEvent, existing, [event])) == T.Replayed{state} : T.ReplayResult}) ->
+  Laws.AcceptedComplete(Core.stage_candidate_complete(event, valid), existing):
+  match valid:
+    case False{}:
+      Unit{}
+    case True{}:
+      (state, (replayed, Equal.sym(Bool, True{}, Core.complete(state), actual)))
+
+def CommandProof.replayed(result: T.ReplayResult, +event: T.DomainEvent, existing: List<&2, T.DomainEvent>,
+  link: {Core.replay(List.append(&2, T.DomainEvent, existing, [event])) == result : T.ReplayResult}) ->
+  Laws.AcceptedComplete(Core.stage_candidate_replayed(result, event), existing):
+  match result:
+    case T.ReplayConflict{id}:
+      Unit{}
+    case T.Replayed{+state}:
+      CommandProof.complete(event, state, existing, Core.complete(state), {==}, link)
+
+def CommandProof.proposed(result: T.StageResult, +existing: List<&2, T.DomainEvent>) -> Laws.AcceptedComplete(Core.stage_proposed(result, existing), existing):
+  match result:
+    case T.StageRejected{reason}:
+      Unit{}
+    case T.StageAccepted{+event}:
+      CommandProof.replayed(Core.replay(List.append(&2, T.DomainEvent, existing, [event])), event, existing, {==})
+
+def Laws.accepted_command_has_complete_prospective_replay(existing, input, accepted, acceptance):
+  %acceptance : Laws.AcceptedComplete(_, existing)
+  CommandProof.proposed(Core.stage_unique(input, existing, Core.ids_contains(existing, Core.event_id(input))), existing)

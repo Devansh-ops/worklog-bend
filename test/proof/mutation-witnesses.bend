@@ -22,6 +22,15 @@ def conflicting_a() -> T.DomainEvent:
 def conflicting_b() -> T.DomainEvent:
   T.Ev{"e-collision", "2026-11-08T00:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "B"}, "{\"id\":\"e-collision\",\"taskId\":\"T-aaa111\",\"text\":\"B\",\"ts\":\"2026-11-08T00:00:00.000Z\",\"type\":\"task.note\"}"}
 
+def clock_create() -> T.DomainEvent:
+  T.Ev{"e-create", "2026-11-08T09:00:00.000Z", "2026-11-08", T.Created{"T-aaa111", "Synthetic task", T.STodo{}, T.PNormal{}, Nil{}, False{}}, "{\"id\":\"e-create\",\"status\":\"todo\",\"taskId\":\"T-aaa111\",\"title\":\"Synthetic task\",\"ts\":\"2026-11-08T09:00:00.000Z\",\"type\":\"task.create\"}"}
+
+def clock_rollback_note() -> T.DomainEvent:
+  T.Ev{"e-note", "2026-11-08T08:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "Synthetic rollback note"}, "{\"id\":\"e-note\",\"taskId\":\"T-aaa111\",\"text\":\"Synthetic rollback note\",\"ts\":\"2026-11-08T08:00:00.000Z\",\"type\":\"task.note\"}"}
+
+def clock_forward_note() -> T.DomainEvent:
+  T.Ev{"e-forward", "2026-11-08T10:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "Synthetic valid note"}, "{\"id\":\"e-forward\",\"taskId\":\"T-aaa111\",\"text\":\"Synthetic valid note\",\"ts\":\"2026-11-08T10:00:00.000Z\",\"type\":\"task.note\"}"}
+
 law notes_off_omits_all_direct_notes:
   {Core.context_notes(Core.project(private_task(), False{})) == Nil{} : List<&2, T.Note>}
 def notes_off_omits_all_direct_notes():
@@ -70,4 +79,14 @@ def collision_refusal_witness():
 law duplicate_delivery_single_event:
   {Core.merge([a()], [a()]) == T.Merged{[a()]} : T.MergeResult}
 def duplicate_delivery_single_event():
+  {==}
+
+law clock_rollback_command_is_rejected:
+  {Core.stage([clock_create()], clock_rollback_note()) == T.StageRejected{"command would create incomplete history; check its clock and references"} : T.StageResult}
+def clock_rollback_command_is_rejected():
+  {==}
+
+law accepted_complete_command_exists:
+  {Core.stage([clock_create()], clock_forward_note()) == T.StageAccepted{clock_forward_note()} : T.StageResult}
+def accepted_complete_command_exists():
   {==}

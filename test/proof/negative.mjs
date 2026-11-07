@@ -99,6 +99,13 @@ const mutations = [
     replacement: 'case True{}:\n      e <> xs\n    case False{}:\n      e <> xs',
     failure: /scan_identical_pair|duplicate_delivery_single_event|successful_merge_has_unique_ids/,
   },
+  {
+    name: 'new command accepted before its task creation',
+    file: 'Core.bend',
+    source: 'stage_candidate_replayed(replay(List.append(&2, T.DomainEvent, existing, [event])), event)',
+    replacement: 'T.StageAccepted{event}',
+    failure: /clock_rollback_command_is_rejected/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {

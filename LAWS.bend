@@ -968,3 +968,33 @@ law inconsistent_event_union_returns_conflict:
   for present_b: {Bool.or(Core.exact_contains(left, b), Core.exact_contains(right, b)) == True{} : Bool}
   exs conflictId: String
   {Core.merge(left, right) == T.EventConflict{conflictId} : T.MergeResult}
+
+def AcceptedComplete(result: T.StageResult, existing: List<&2, T.DomainEvent>) -> Type:
+  match result:
+    case T.StageRejected{reason}:
+      Unit
+    case T.StageAccepted{+event}:
+      &state: T.State -> {Core.replay(List.append(&2, T.DomainEvent, existing, [event])) == T.Replayed{state} : T.ReplayResult} & {Core.complete(state) == True{} : Bool}
+
+law accepted_command_has_complete_prospective_replay:
+  for +existing: List<&2, T.DomainEvent>
+  for +input: T.DomainEvent
+  for accepted: T.DomainEvent
+  for acceptance: {Core.stage(existing, input) == T.StageAccepted{accepted} : T.StageResult}
+  exs state: T.State
+  {Core.replay(List.append(&2, T.DomainEvent, existing, [accepted])) == T.Replayed{state} : T.ReplayResult} & {Core.complete(state) == True{} : Bool}
+
+def clock_create() -> T.DomainEvent:
+  T.Ev{"e-create", "2026-11-08T09:00:00.000Z", "2026-11-08", T.Created{"T-aaa111", "Synthetic task", T.STodo{}, T.PNormal{}, Nil{}, False{}}, "{\"id\":\"e-create\",\"status\":\"todo\",\"taskId\":\"T-aaa111\",\"title\":\"Synthetic task\",\"ts\":\"2026-11-08T09:00:00.000Z\",\"type\":\"task.create\"}"}
+
+def clock_rollback_note() -> T.DomainEvent:
+  T.Ev{"e-note", "2026-11-08T08:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "Synthetic rollback note"}, "{\"id\":\"e-note\",\"taskId\":\"T-aaa111\",\"text\":\"Synthetic rollback note\",\"ts\":\"2026-11-08T08:00:00.000Z\",\"type\":\"task.note\"}"}
+
+law clock_rollback_command_is_rejected:
+  {Core.stage([clock_create()], clock_rollback_note()) == T.StageRejected{"command would create incomplete history; check its clock and references"} : T.StageResult}
+
+def clock_forward_note() -> T.DomainEvent:
+  T.Ev{"e-forward", "2026-11-08T10:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "Synthetic valid note"}, "{\"id\":\"e-forward\",\"taskId\":\"T-aaa111\",\"text\":\"Synthetic valid note\",\"ts\":\"2026-11-08T10:00:00.000Z\",\"type\":\"task.note\"}"}
+
+law accepted_complete_command_exists:
+  {Core.stage([clock_create()], clock_forward_note()) == T.StageAccepted{clock_forward_note()} : T.StageResult}
