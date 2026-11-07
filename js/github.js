@@ -18,7 +18,7 @@
 /* Base64 <-> UTF-8. btoa/atob are Latin-1 only, so route through TextEncoder
    to keep accents and emoji intact in task titles and notes. */
 const _enc = new TextEncoder();
-const _dec = new TextDecoder();
+const _dec = new TextDecoder('utf-8', { fatal: true });
 
 function utf8ToB64(str) {
   const bytes = _enc.encode(str);
@@ -111,6 +111,18 @@ export class GitHubRepo {
 
   get slug() { return `${this.owner}/${this.repo}`; }
 
+  async pinRevision() {
+    const ref = await this._json(`${API}/repos/${this.slug}/git/ref/heads/${encodeURIComponent(this.branch)}`);
+    if (!/^[0-9a-f]{40,64}$/.test(ref?.object?.sha || '')) throw new Error('GitHub returned an invalid read revision.');
+    this.readRevision = ref.object.sha;
+    return this.readRevision;
+  }
+
+  _path(path) {
+    if (typeof path !== 'string' || path.split('/').some(part => !part || part === '.' || part === '..') || /[\\\x00-\x1f]/.test(path)) throw new Error('Invalid repository file path.');
+    return path.split('/').map(encodeURIComponent).join('/');
+  }
+
   _headers(extra = {}) {
     const h = {
       Accept: 'application/vnd.github+json',
@@ -154,7 +166,7 @@ export class GitHubRepo {
   }
 
   async _getViaApi(path) {
-    const url = `${API}/repos/${this.slug}/contents/${encodeURI(path)}?ref=${encodeURIComponent(this.branch)}`;
+    const url = `${API}/repos/${this.slug}/contents/${this._path(path)}?ref=${encodeURIComponent(this.readRevision || this.branch)}`;
     const res = await fetch(url, { headers: this._headers() });
     if (res.status === 404) return null;
     if (res.status === 401) throw new AuthError('GitHub rejected the token (401).');
@@ -177,7 +189,7 @@ export class GitHubRepo {
   }
 
   async _getViaRaw(path) {
-    const url = `https://raw.githubusercontent.com/${this.slug}/${encodeURIComponent(this.branch)}/${encodeURI(path)}`;
+    const url = `https://raw.githubusercontent.com/${this.slug}/${encodeURIComponent(this.readRevision || this.branch)}/${this._path(path)}`;
     const res = await fetch(url, { cache: 'no-cache' });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`raw ${res.status} reading ${path}`);
@@ -261,6 +273,8 @@ export class GitHubRepo {
    */
   async createRepo({ private: isPrivate = true, description = 'Personal work log' } = {}) {
     if (!this.token) throw new AuthError('A GitHub token is required to create a repository.');
+    const account = await this._json(`${API}/user`);
+    if (typeof account.login !== 'string' || account.login.toLowerCase() !== this.owner.toLowerCase()) throw new Error('Repository creation requires the authenticated personal account as Owner. No repository was created.');
     const res = await fetch(`${API}/user/repos`, {
       method: 'POST',
       headers: this._headers({ 'Content-Type': 'application/json' }),
@@ -320,7 +334,6 @@ export class GitHubRepo {
     if (!files.length) return null;
     if (!this.token) throw new AuthError('A GitHub token is required to create the first commit.');
 
-    try {
       const tree = await this._json(`${API}/repos/${this.slug}/git/trees`, {
         method: 'POST',
         body: JSON.stringify({ tree: files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', content: f.text })) }),
@@ -334,15 +347,10 @@ export class GitHubRepo {
         headers: this._headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ref: `refs/heads/${this.branch}`, sha: commit.sha }),
       });
+      if (res.status === 409 || res.status === 422) throw new ConflictError(this.branch);
       if (!res.ok) throw new Error(`GitHub ${res.status} creating branch: ${await res.text()}`);
+      this.readRevision = commit.sha;
       return { commit: commit.sha, commits: 1 };
-    } catch (err) {
-      if (err instanceof AuthError) throw err;
-      const [first, ...rest] = files;
-      await this.putFile(first.path, first.text, null, message);
-      if (rest.length) await this.commitFiles(rest, message);
-      return { commits: rest.length ? 2 : 1, viaFallback: true };
-    }
   }
 
   /* ---------- atomic multi-file commit ---------------------------------- */
@@ -362,17 +370,30 @@ export class GitHubRepo {
    *   followed by a delete that might not happen.
    * @throws {ConflictError} when the branch advanced while we were building the commit
    */
-  async commitFiles(files, message, { deletions = [] } = {}) {
+  async commitFiles(files, message, { deletions = [], expectedBase } = {}) {
     if (!this.token) throw new AuthError('A GitHub token is required to save changes.');
     if (!files.length && !deletions.length) return null;
+    if (!/^[0-9a-f]{40,64}$/.test(expectedBase || '')) throw new Error('A revision-bound approved plan is required. Preview again before publishing.');
+    const paths = new Set();
+    for (const file of files) {
+      this._path(file.path);
+      if (typeof file.text !== 'string' || paths.has(file.path)) throw new Error('Invalid or repeated write path.');
+      paths.add(file.path);
+    }
+    for (const path of deletions) {
+      this._path(path);
+      if (paths.has(path)) throw new Error('Repeated or overlapping deletion path.');
+      paths.add(path);
+    }
 
-    const ref = `heads/${this.branch}`;
+    const ref = `heads/${encodeURIComponent(this.branch)}`;
 
     // 1. current branch tip — also our optimistic-concurrency baseline
     const refRes = await fetch(`${API}/repos/${this.slug}/git/ref/${ref}`, { headers: this._headers() });
     if (refRes.status === 404) throw new Error(`Branch "${this.branch}" does not exist in ${this.slug}. Create it (an empty repo has no branches until its first commit).`);
     if (!refRes.ok) throw new Error(`GitHub ${refRes.status} reading ref: ${await refRes.text()}`);
     const parentSha = (await refRes.json()).object.sha;
+    if (parentSha !== expectedBase) throw new ConflictError(this.branch);
 
     // 2. the tree that commit points at, used as the base so untouched files persist
     const parentCommit = await this._json(`${API}/repos/${this.slug}/git/commits/${parentSha}`);
@@ -405,9 +426,10 @@ export class GitHubRepo {
       headers: this._headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ sha: commit.sha, force: false }),
     });
-    if (patch.status === 422) throw new ConflictError(this.branch);
+    if (patch.status === 409 || patch.status === 422) throw new ConflictError(this.branch);
     if (!patch.ok) throw new Error(`GitHub ${patch.status} updating ref: ${await patch.text()}`);
 
+    this.readRevision = commit.sha;
     return { commit: commit.sha };
   }
 

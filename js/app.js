@@ -235,6 +235,7 @@ class App {
     try {
       this.store = new Store(demoRepo({ appUrl: location.href.split('?')[0] }));
       await this.store.load();
+
     } catch (e) {
       this.loadError = `Could not build the demo board: ${e.message}`;
     } finally {
@@ -278,6 +279,12 @@ class App {
       }
 
       await this.store.load();
+      if (this.store.pendingRecovery && await confirm({
+        title: 'Recover older local changes?',
+        body: `Older changes were saved without a branch. Recover them into ${repo.slug} on ${repo.branch}? The original recovery source will be retained.`,
+        confirmLabel: 'Recover here',
+      })) this.store.recoverLegacyPending();
+      if (this.store.storageError) toast(this.store.storageError, 'error');
     } catch (e) {
       this.loadError = e instanceof AuthError
         ? `${e.message} If this repo is private, the token needs Contents: read access to it.`
@@ -292,7 +299,8 @@ class App {
 
   stage(...events) {
     if (!this.store) { toast('Set up a data repo first.', 'error'); return; }
-    this.store.stage(...events);
+    try { this.store.stage(...events); }
+    catch (error) { toast(error.message, 'error'); }
     this.refresh();
   }
 
@@ -358,7 +366,10 @@ class App {
       return;
     }
 
-    const preview = this.store.previewCommit();
+    let preview;
+    try { preview = await this.store.preparePublish(); }
+    catch (error) { toast(error.message, 'error'); return; }
+    if (!preview) return;
     const vis = this.repoInfo?.visibility;
 
     const body = el('div', {},
@@ -369,6 +380,8 @@ class App {
       el('pre', { class: 'commit-preview', text: preview.message }),
       el('div', { class: 'section-label', text: `Files (${preview.files.length})` }),
       el('ul', { class: 'file-list' }, preview.files.map((f) => el('li', { text: f.path }))),
+      ...preview.files.map(file => el('details', {}, el('summary', { text: file.path }), el('pre', { class: 'commit-preview', text: file.text }))),
+      el('p', {}, 'Base revision: ', el('code', { text: preview.base || 'demo' })),
       vis === 'public'
         ? notice('warn', 'This repo is public — anything here is world-readable, including task titles and notes.')
         : notice('info', 'This repo is private. Task content is committed as plain JSON, readable by anyone with access to the repo.'),
@@ -383,13 +396,14 @@ class App {
 
     const busy = dialog({ title: 'Publishing', body: spinner('Committing to GitHub…'), dismissable: false });
     try {
-      const res = await this.store.push();
+      const res = await this.store.push(preview);
       busy.close(true);
       toast(`Published ${plural(res?.count ?? preview.count, 'change')}.`);
+      if (res?.warning) toast(res.warning, 'error');
     } catch (e) {
       busy.close(true);
       const msg = e instanceof ConflictError
-        ? 'Someone (or another tab) changed the repo while this was pushing, and merging kept failing. Your changes are still staged — try again.'
+        ? 'The repository changed. Your changes remain staged. Review a new preview before publishing again.'
         : e instanceof AuthError
           ? `${e.message} The token needs Contents: read and write on this repo.`
           : `Push failed: ${e.message}`;
@@ -771,7 +785,8 @@ class App {
           el('div', { class: 'section-label', text: `Files removed (${plan.deletions.length})` }),
           el('ul', { class: 'file-list' }, plan.deletions.map((d) => el('li', { text: d }))),
           notice('info', 'Their events are written to the new paths in this same commit, and git keeps the old versions in history either way.'))
-        : null);
+        : null,
+      ...plan.files.map(file => el('details', {}, el('summary', { text: file.path }), el('pre', { class: 'commit-preview', text: file.text }))));
 
     const { done } = dialog({
       title: 'Upgrade the data layout?',
@@ -782,7 +797,7 @@ class App {
 
     const writing = dialog({ title: 'Upgrading', body: spinner('Committing the new layout…'), dismissable: false });
     try {
-      await this.store.migrate();
+      await this.store.migrate(plan);
       writing.close(true);
       toast('Layout upgraded. The repo now renders as markdown on GitHub.');
     } catch (e) {
@@ -843,3 +858,4 @@ app.start().catch((e) => {
 addEventListener('beforeunload', (e) => {
   if (app.hasPending) { e.preventDefault(); e.returnValue = ''; }
 });
+

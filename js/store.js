@@ -30,6 +30,9 @@
  */
 
 import { ConflictError } from './github.js';
+import { mergeEvents, replayEvents, validateCommand, encodeEvent, core } from './domain.js';
+import { parseJSON, canonicalJSON, immutableJSON, listToBend, listFromBend } from './codec.js';
+import publication from './generated/publication.mjs';
 
 export const STATUSES = Object.freeze([
   { id: 'backlog',     label: 'Backlog' },
@@ -151,14 +154,10 @@ export function makeEvent(type, payload = {}) {
   return { id: newEventId(ts), ts, type, ...payload };
 }
 
-const sortEvents = (evs) => [...evs].sort((a, b) => (a.ts === b.ts ? (a.id < b.id ? -1 : 1) : (a.ts < b.ts ? -1 : 1)));
+const sortEvents = (events) => mergeEvents(events);
 
 /** Union by event id — the merge primitive that makes concurrent edits safe. */
-export function unionEvents(...lists) {
-  const seen = new Map();
-  for (const list of lists) for (const e of list || []) if (!seen.has(e.id)) seen.set(e.id, e);
-  return sortEvents([...seen.values()]);
-}
+export const unionEvents = (...lists) => mergeEvents(...lists);
 
 /**
  * Is this event past the checkpoint, i.e. not already folded into the snapshot?
@@ -183,92 +182,8 @@ export const afterThrough = (e, through) => !through
  * Base tasks are copied, never mutated: this runs on every render.
  */
 export function foldEvents(events, { base = null } = {}) {
-  const tasks = new Map();
-  const summaries = {};
-  const standups = {};
-  let skipped = 0;
-
-  for (const t of base || []) {
-    if (!t || !t.id) continue;
-    tasks.set(t.id, { ...t, tags: [...(t.tags || [])], notes: (t.notes || []).map((n) => ({ ...n })) });
-  }
-
-  const noteKey = (n) => `${n.ts}|${n.text}`;
-  const seenNotes = new Set();
-  for (const t of tasks.values()) for (const n of t.notes) seenNotes.add(`${t.id}\u0000${noteKey(n)}`);
-  const resorted = new Set();
-
-  for (const e of sortEvents(events)) {
-    if (e.type === 'summary.set') {
-      (summaries[e.date] ||= {})[e.kind] = { ...e.summary, ts: e.ts, model: e.model };
-      continue;
-    }
-
-    // Last one wins, like a summary: re-copying an edited sign-off supersedes the
-    // one recorded an hour earlier rather than appending a second report for the day.
-    if (e.type === 'standup.set') {
-      (standups[e.date] ||= {})[e.kind] = { text: e.text, style: e.style, ts: e.ts };
-      continue;
-    }
-
-    if (e.type === 'task.create') {
-      if (!tasks.has(e.taskId)) {
-        tasks.set(e.taskId, {
-          id: e.taskId,
-          title: e.title || '(untitled)',
-          status: e.status || 'todo',
-          priority: e.priority || 'normal',
-          tags: e.tags || [],
-          private: !!e.private,
-          notes: [],
-          created: e.ts,
-          updated: e.ts,
-          done: null,
-          deleted: false,
-        });
-      }
-      continue;
-    }
-
-    const t = tasks.get(e.taskId);
-    if (!t) { skipped++; continue; }
-
-    switch (e.type) {
-      case 'task.status':
-        t.status = e.to;
-        t.done = e.to === 'done' ? e.ts : null;
-        break;
-      case 'task.note': {
-        // Notes are a SET, not a sequence: adding one twice must be a no-op. That is
-        // what lets a note be applied even when it predates the checkpoint, which is
-        // in turn what lets the snapshot drop old notes and the wiki fetch them back.
-        const key = `${t.id}\u0000${e.ts}|${e.text}`;
-        if (seenNotes.has(key)) break;
-        seenNotes.add(key);
-        t.notes.push({ ts: e.ts, text: e.text });
-        resorted.add(t);
-        break;
-      }
-      case 'task.edit':
-        for (const [k, v] of Object.entries(e.fields || {})) {
-          if (['title', 'priority', 'tags', 'private', 'status'].includes(k)) t[k] = v;
-        }
-        break;
-      case 'task.delete':
-        t.deleted = true;
-        break;
-      default:
-        skipped++;
-        continue;
-    }
-    // Max, not last-applied: a note recovered from an old month must not drag the
-    // task's timestamp backwards.
-    if (!t.updated || e.ts > t.updated) t.updated = e.ts;
-  }
-
-  for (const t of resorted) t.notes.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-
-  return { tasks, summaries, standups, skipped };
+  if (base?.length) throw new Error('Unverified snapshots cannot seed replay. Load authoritative history.');
+  return replayEvents(events);
 }
 
 /* ---------- the event files ---------------------------------------------- */
@@ -295,10 +210,10 @@ function orderEvent(e) {
  * read it. One line per event means one added line per change, and the file is still
  * ordinary JSON that JSON.parse and GitHub's viewer handle.
  */
-export function serialiseMonth(month, events) {
+export function serialiseMonth(month, events, extras = {}) {
   const lines = sortEvents(events).map((e) => `    ${JSON.stringify(orderEvent(e))}`);
   const body = lines.length ? `\n${lines.join(',\n')}\n  ` : '';
-  return `{\n  "month": ${JSON.stringify(month)},\n  "count": ${lines.length},\n  "events": [${body}]\n}\n`;
+  return `{\n${Object.keys(extras).length ? Object.entries(extras).map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)},\n`).join('') : ''}  "month": ${JSON.stringify(month)},\n  "count": ${lines.length},\n  "events": [${body}]\n}\n`;
 }
 
 /* ---------- human-readable rendering ------------------------------------ */
@@ -587,7 +502,7 @@ const NOTES_KEPT_DAYS = 90;
  */
 export function renderBoardSnapshot(tasks, through) {
   const cutoff = new Date(Date.now() - NOTES_KEPT_DAYS * 86400000).toISOString();
-  const live = [...tasks.values()].filter((t) => !t.deleted)
+  const live = [...tasks.values()]
     .sort((a, b) => STATUSES.findIndex((s) => s.id === a.status) - STATUSES.findIndex((s) => s.id === b.status)
       || (a.created < b.created ? -1 : 1))
     .map((t) => {
@@ -598,9 +513,10 @@ export function renderBoardSnapshot(tasks, through) {
 
   const head = JSON.stringify({
     schema: SCHEMA,
+    cacheOnly: true,
     generated: new Date().toISOString(),
     through: through ? { ts: through.ts, id: through.id } : null,
-    counts: STATUSES.reduce((m, s) => (m[s.id] = live.filter((t) => t.status === s.id).length, m), {}),
+    counts: STATUSES.reduce((m, s) => (m[s.id] = live.filter((t) => !t.deleted && t.status === s.id).length, m), {}),
   }, null, 2);
 
   const lines = live.map((t) => `    ${JSON.stringify(slimTask(t))}`);
@@ -642,9 +558,11 @@ function slimTask(t) {
  */
 function readManifest(manifest) {
   const stats = new Map();
+  if (manifest && !Array.isArray(manifest.months)) throw new Error('Manifest months must be an array.');
   for (const entry of manifest?.months || []) {
     const s = typeof entry === 'string' ? { month: entry } : { ...entry };
-    if (!s.month) continue;
+    if (typeof s.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(s.month)) throw new Error('Invalid manifest month.');
+    if (stats.has(s.month)) throw new Error('Repeated manifest month.');
     stats.set(s.month, s);
   }
   return stats;
@@ -673,7 +591,12 @@ export class Store {
     this.legacyMonths = [];   // months found only at their v1 flat path
     this.manifestSchema = SCHEMA;
     this.loaded = false;
-    this._pendingKey = `worklog.pending.${repo.owner}/${repo.repo}`;
+    this._pendingKey = `worklog.pending.${repo.owner}/${repo.repo}#${encodeURIComponent(repo.branch || 'main')}`;
+    this._legacyPendingKey = `worklog.pending.${repo.owner}/${repo.repo}`;
+    this.envelopes = new Map();
+    this.schemas = new Map();
+    this._plans = new WeakSet();
+    this.authoritative = false;
     this._restorePending();
   }
 
@@ -682,18 +605,42 @@ export class Store {
   _restorePending() {
     if (this.repo.demo) return;
     try {
-      this.pending = JSON.parse(localStorage.getItem(this._pendingKey) || '[]');
-    } catch { this.pending = []; }
+      const saved = localStorage.getItem(this._pendingKey);
+      const legacy = localStorage.getItem(this._legacyPendingKey);
+      if (!saved && legacy) this.pendingRecovery = { key: this._legacyPendingKey, text: legacy };
+      const parsed = parseJSON(saved || '[]');
+      if (!Array.isArray(parsed)) throw new Error('Stored pending changes must be an array.');
+      this.pending = parsed.map(event => { encodeEvent(event); return immutableJSON(event); });
+    } catch (error) {
+      this.storageError = error.message;
+      this.recoveryRequired = true;
+    }
   }
 
   _savePending() {
     if (this.repo.demo) return;
-    localStorage.setItem(this._pendingKey, JSON.stringify(this.pending));
+    if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before overwriting it.');
+    try { localStorage.setItem(this._pendingKey, canonicalJSON(this.pending)); this.storageError = null; }
+    catch (error) { this.storageError = error.message; throw new Error('Local storage failed. Changes remain in memory; keep this tab open.'); }
+  }
+
+  recoverLegacyPending() {
+    if (!this.pendingRecovery) return;
+    const recovered = parseJSON(this.pendingRecovery.text);
+    if (!Array.isArray(recovered)) throw new Error('Legacy pending changes must be an array.');
+    recovered.forEach(event => encodeEvent(event));
+    this.pending = mergeEvents(this.pending, recovered).map(immutableJSON);
+    this._savePending();
+    // Keep the original recovery source. Other branches must never inherit it automatically.
+    this.pendingRecovery = null;
   }
 
   /** Stage events locally. Never contacts the network. */
   stage(...events) {
-    this.pending.push(...events.flat());
+    if (!this.authoritative || !this.state.complete) throw new Error('Load complete supported history before editing.');
+    let accepted = [...this.pending];
+    for (const event of events.flat()) accepted.push(validateCommand(mergeEvents(this.remoteEvents, accepted), event));
+    this.pending = accepted;
     this._savePending();
     return this;
   }
@@ -761,18 +708,7 @@ export class Store {
    * because they are already folded into it.
    */
   get state() {
-    const all = unionEvents(this.remoteEvents, this.pending);
-    const through = this.checkpoint?.through || null;
-    // Status and edits are order-dependent, so replaying ones the snapshot already
-    // folded in would regress them. Notes are not: they de-duplicate, so an old month
-    // loaded later restores notes the snapshot trimmed. Summaries are the same kind of
-    // thing -- keyed by (date, kind), newest wins -- and the snapshot does not carry
-    // them at all, so they must be replayed or a published summary vanishes from the
-    // UI while still sitting in the log.
-    return foldEvents(
-      all.filter((e) => e.type === 'task.note' || e.type === 'summary.set' || afterThrough(e, through)),
-      { base: this.checkpoint?.tasks },
-    );
+    return replayEvents(mergeEvents(this.remoteEvents, this.pending));
   }
 
   get tasks() {
@@ -787,6 +723,11 @@ export class Store {
    * everything, which is what a v1 repo needs on its first load.
    */
   async load({ recent = RECENT_MONTHS } = {}) {
+    this.authoritative = false;
+    this.loaded = false;
+    this.envelopes = new Map();
+    this.schemas = new Map();
+    if (this.repo.pinRevision) await this.repo.pinRevision();
     const manifest = await this._readJSON(PATHS.manifest);
     this.monthStats = readManifest(manifest);
     this.manifestSchema = Number(manifest?.schema) || 1;
@@ -797,15 +738,24 @@ export class Store {
     this.knownMonths = [...this.monthStats.keys()].sort();
 
     const snap = await this._readJSON(PATHS.board);
-    this.checkpoint = snap?.through?.ts && Array.isArray(snap.tasks)
-      ? { through: snap.through, tasks: snap.tasks }
-      : null;
+    // Schema 1/2 snapshots lack verifiable coverage. They are display caches only.
+    this.checkpoint = null;
+    this.replayMode = 'authoritative full replay';
 
     this.remoteEvents = [];
     this.loadedMonths = [];
     this.legacyMonths = [];
-    await this.loadMonths(this.checkpoint ? this.knownMonths.slice(-recent) : this.knownMonths);
+    await this.loadMonths(this.knownMonths);
     this.loaded = true;
+    this.authoritative = this.state.complete;
+    if (this.authoritative && this.pending.length) {
+      const remaining = core.acknowledge(listToBend(this.pending, event => encodeEvent(event)), listToBend(this.remoteEvents, event => encodeEvent(event)), true);
+      const recovered = listFromBend(remaining, event => parseJSON(event.canonical));
+      if (recovered.length !== this.pending.length) {
+        this.pending = recovered;
+        try { this._savePending(); } catch { /* storageError remains visible; remote confirmation is authoritative. */ }
+      }
+    }
     return this;
   }
 
@@ -829,22 +779,67 @@ export class Store {
   /** Month files moved into year folders in v2; fall back to the flat v1 path. */
   async _readMonth(month) {
     const current = await this._readJSON(PATHS.month(month));
-    if (current) return current;
-    // Fall back to where v1 put it. Recording that here is what lets the UI offer an
-    // upgrade: a repo written by v1 loads correctly, it just is not laid out well.
     const legacy = await this._readJSON(PATHS.legacyMonth(month));
     if (legacy && !this.legacyMonths.includes(month)) this.legacyMonths.push(month);
-    return legacy;
+    const extras = {};
+    for (const envelope of [current, legacy]) {
+      if (!envelope) continue;
+      if (!Array.isArray(envelope.events)) throw new Error('Month events must be an array.');
+      if (envelope.month && envelope.month !== month) throw new Error('Month path and envelope disagree.');
+      for (const [key, value] of Object.entries(envelope)) {
+        if (['month', 'count', 'events', 'schema'].includes(key)) continue;
+        if (Object.hasOwn(extras, key) && canonicalJSON(extras[key]) !== canonicalJSON(value)) throw new Error('Conflicting retained month metadata: ' + key);
+        extras[key] = value;
+      }
+    }
+    return current || legacy ? { ...extras, events: mergeEvents(current?.events || [], legacy?.events || []) } : null;
   }
 
   async _readJSON(path) {
-    const f = await this.repo.getFile(path);
-    if (!f) return null;
-    try {
-      return JSON.parse(f.text);
-    } catch (err) {
-      throw new Error(`${path} is not valid JSON (${err.message}). Fix or delete it in the repo.`);
+    const file = await this.repo.getFile(path);
+    if (!file) return null;
+    const value = parseJSON(file.text);
+    if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(path + ' must be an object.');
+    const schema = value.schema ?? 1;
+    if (!Number.isInteger(schema) || schema < 0 || schema > 0xffffffff || !core.schema_allowed(schema)) throw new Error(path + ': unsupported schema ' + schema + '. No write plan is permitted.');
+    this.envelopes.set(path, immutableJSON(value));
+    this.schemas.set(path, schema);
+    return value;
+  }
+
+  _monthText(month, events) {
+    const extras = {};
+    const current = this.envelopes.get(PATHS.month(month));
+    const legacy = this.envelopes.get(PATHS.legacyMonth(month));
+    if (current?.schema !== undefined || legacy?.schema !== undefined) extras.schema = current?.schema ?? legacy.schema;
+    for (const path of [PATHS.month(month), PATHS.legacyMonth(month)]) {
+      for (const [key, value] of Object.entries(this.envelopes.get(path) || {})) {
+        if (!['month', 'count', 'events', 'schema'].includes(key)) extras[key] = value;
+      }
     }
+    return serialiseMonth(month, events, extras);
+  }
+
+  _manifestText(stats) {
+    return JSON.stringify({ ...this.envelopes.get(PATHS.manifest), ...parseJSON(renderManifest(stats)) }, null, 2) + '\n';
+  }
+
+  _sealPlan(plan) {
+    if (!this.loaded || !this.authoritative || !this.state.complete) throw new Error('Complete supported authoritative history is required before a write plan.');
+    const sealed = immutableJSON({ ...plan, target: this.repo.slug || this.repo.owner + '/' + this.repo.repo,
+      branch: this.repo.branch || 'main', base: this.repo.readRevision || null,
+      sourceSchemas: [...this.schemas.values()], pending: this.pending,
+      deletions: plan.deletions || [] });
+    this._plans.add(sealed);
+    return sealed;
+  }
+
+  _approvedPlan(plan) {
+    if (!plan || !this._plans.has(plan)) throw new Error('An exact preview from this store must be approved first.');
+    const execution = { ...plan, target: this.repo.slug || this.repo.owner + '/' + this.repo.repo,
+      branch: this.repo.branch || 'main', base: this.repo.readRevision || null };
+    if (!publication.approved(listToBend([...this.schemas.values()]), canonicalJSON(plan), canonicalJSON(execution))) throw new Error('The approved publication plan changed. Preview it again.');
+    return plan;
   }
 
   /* --- publishing --- */
@@ -906,7 +901,7 @@ export class Store {
 
     const files = [
       ...months.flatMap((m) => [
-        { path: PATHS.month(m),   text: serialiseMonth(m, eventsIn.get(m)) },
+        { path: PATHS.month(m),   text: this._monthText(m, eventsIn.get(m)) },
         { path: PATHS.monthMd(m), text: renderMonthMd(m, eventsIn.get(m), tasks) },
       ]),
       ...years.map((y) => ({ path: PATHS.yearReadme(y), text: renderYearReadme(y, statList) })),
@@ -914,7 +909,7 @@ export class Store {
       { path: PATHS.boardMd,   text: renderBoardMd(tasks) },
       { path: PATHS.changelog, text: renderChangelogIndex(statList) },
       { path: PATHS.logReadme, text: renderLogReadme() },
-      { path: PATHS.manifest,  text: renderManifest(stats) },
+      { path: PATHS.manifest,  text: this._manifestText(stats) },
     ];
 
     // Only ever delete a flat file whose events this same commit writes elsewhere.
@@ -936,20 +931,18 @@ ${s(months.length, 'month')} rewritten, ${s(deletions.length, 'old file')} remov
 Co-Authored-By: Claude <noreply@anthropic.com>
 `;
 
-    return { files, deletions, message, months, count: merged.length };
+    return this._sealPlan({ files, deletions, message, months, count: merged.length });
   }
 
   /**
    * Perform the upgrade. Call only after the user has seen migrationCommit().
    * No event is altered, so this is safe to retry and safe to skip.
    */
-  async migrate() {
-    if (!this.fullyLoaded) await this.loadAll();
-    const plan = this.migrationCommit();
-    if (!plan) return null;
-    const res = await this.repo.commitFiles(plan.files, plan.message, { deletions: plan.deletions });
+  async migrate(approvedPlan) {
+    const plan = this._approvedPlan(approvedPlan);
+    const result = await this.repo.commitFiles(plan.files, plan.message, { deletions: plan.deletions, expectedBase: plan.base });
     await this.load();
-    return res;
+    return result;
   }
 
   previewCommit() {
@@ -964,7 +957,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
     const merged = unionEvents(this.remoteEvents, this.pending);
     const through = merged[merged.length - 1] || null;
-    const { tasks } = foldEvents(merged.filter((e) => afterThrough(e, this.checkpoint?.through)), { base: this.checkpoint?.tasks });
+    const { tasks } = replayEvents(merged);
 
     const eventsIn = new Map(touchedAll.map((m) => [m, merged.filter((e) => monthOfEvent(e) === m)]));
     // A month pulled in only to move an event out of it is written even if that leaves
@@ -988,7 +981,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
     const files = [
       ...touched.flatMap((m) => [
-        { path: PATHS.month(m),   text: serialiseMonth(m, eventsIn.get(m)) },
+        { path: PATHS.month(m),   text: this._monthText(m, eventsIn.get(m)) },
         { path: PATHS.monthMd(m), text: renderMonthMd(m, eventsIn.get(m), tasks) },
       ]),
       ...touchedYears.map((y) => ({ path: PATHS.yearReadme(y), text: renderYearReadme(y, statList) })),
@@ -996,15 +989,15 @@ Co-Authored-By: Claude <noreply@anthropic.com>
       { path: PATHS.boardMd,   text: renderBoardMd(tasks) },
       { path: PATHS.changelog, text: renderChangelogIndex(statList) },
       { path: PATHS.logReadme, text: renderLogReadme() },
-      { path: PATHS.manifest,  text: renderManifest(stats) },
+      { path: PATHS.manifest,  text: this._manifestText(stats) },
     ];
 
-    return {
+    return this._sealPlan({
       files,
       message: buildCommitMessage(this.pending, tasks),
       changes: this.pending.map((e) => describeEvent(e, tasks)),
       count: this.pending.length,
-    };
+    });
   }
 
   /**
@@ -1014,32 +1007,28 @@ Co-Authored-By: Claude <noreply@anthropic.com>
    * unioned with ours, and the commit rebuilt — so a race merges instead of
    * clobbering. Retried a few times before giving up.
    */
-  async push({ retries = 3 } = {}) {
-    if (!this.hasPending) return null;
+  async preparePublish() {
+    if (!this.loaded) await this.load();
+    await this.loadMonths(this.touchedMonths);
+    return this.previewCommit();
+  }
 
-    // A month we are about to rewrite must be read first, or we would truncate it.
-    if (this.loaded) await this.loadMonths(this.touchedMonths);
-
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      const preview = this.previewCommit();
-      try {
-        const res = await this.repo.commitFiles(preview.files, preview.message);
-        // Staged events are now published; fold them into the remote baseline.
-        this.remoteEvents = unionEvents(this.remoteEvents, this.pending);
-        for (const m of this.touchedMonths) {
-          if (!this.monthStats.has(m)) this.monthStats.set(m, { month: m });
-          if (!this.loadedMonths.includes(m)) this.loadedMonths = [...this.loadedMonths, m].sort();
-        }
-        this.knownMonths = [...new Set([...this.knownMonths, ...this.touchedMonths])].sort();
-        this.discardPending();
-        return res;
-      } catch (err) {
-        if (!(err instanceof ConflictError) || attempt === retries) throw err;
-        await this.load();               // pull peer's events, then rebuild and retry
-        await this.loadMonths(this.touchedMonths);
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-      }
+  async push(approvedPlan) {
+    const plan = this._approvedPlan(approvedPlan);
+    let result;
+    try {
+      result = await this.repo.commitFiles(plan.files, plan.message, { deletions: plan.deletions, expectedBase: plan.base });
+    } catch (error) {
+      if (error instanceof ConflictError) await this.load();
+      throw error;
     }
-    return null;
+    this.remoteEvents = mergeEvents(this.remoteEvents, plan.pending);
+    const remaining = core.acknowledge(listToBend(this.pending, event => encodeEvent(event)), listToBend(plan.pending, event => encodeEvent(event)), true);
+    this.pending = listFromBend(remaining, event => parseJSON(event.canonical));
+    let warning = null;
+    try { this._savePending(); } catch (error) { warning = error.message; }
+    try { await this.load(); } catch (error) { warning = 'Published successfully, but refresh failed: ' + error.message; }
+    return { ...result, count: plan.count, warning };
   }
 }
+
