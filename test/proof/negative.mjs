@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const wrapper = resolve(process.env.BEND_LINUX_WRAPPER || join(root, 'scripts/bend-linux.sh'));
 const wslPath = path => path.replace(/^([A-Za-z]):[\\/]/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replaceAll('\\', '/');
-function check(cwd, expectedStatus, expectedOutput) {
+function check(cwd, expectedStatus, expectedOutput, file = 'PROOF.bend') {
   const result = process.platform === 'win32'
-    ? spawnSync('wsl.exe', ['--distribution', 'Ubuntu', '--exec', 'sh', wslPath(wrapper), 'PROOF.bend', '--verdict'], { cwd, encoding: 'utf8', timeout: 300000 })
-    : spawnSync('sh', [wrapper, 'PROOF.bend', '--verdict'], { cwd, encoding: 'utf8', timeout: 300000 });
+    ? spawnSync('wsl.exe', ['--distribution', 'Ubuntu', '--exec', 'sh', wslPath(wrapper), file, '--verdict'], { cwd, encoding: 'utf8', timeout: 300000 })
+    : spawnSync('sh', [wrapper, file, '--verdict'], { cwd, encoding: 'utf8', timeout: 300000 });
   const output = (result.stdout || '') + (result.stderr || '');
   assert.equal(result.error, undefined, output);
   assert.equal(result.status, expectedStatus, output);
@@ -19,6 +19,8 @@ function check(cwd, expectedStatus, expectedOutput) {
 }
 
 check(root, 0, /ALL PROOFS CHECK/);
+const witnesses = 'test/proof/mutation-witnesses.bend';
+check(root, 0, /ALL PROOFS CHECK/, witnesses);
 const mutations = [
   {
     name: 'notes-off leak',
@@ -90,6 +92,13 @@ const mutations = [
     replacement: 'def mutation_tamper(event: T.DomainEvent) -> T.DomainEvent:\n  match event:\n    case T.Ev{id, ts, day, payload, canonical}:\n      T.Ev{id, ts, day, payload, "MUTATED"}\n\ndef unique_put(e: T.DomainEvent, xs: List<&2, T.DomainEvent>, exists: Bool) -> List<&2, T.DomainEvent>:\n  match exists:\n    case True{}:\n      xs\n    case False{}:\n      mutation_tamper(e) <> xs',
     failure: /complete_content_merge_witness/,
   },
+  {
+    name: 'duplicate event retained in merge output',
+    file: 'Core.bend',
+    source: 'case True{}:\n      xs\n    case False{}:\n      e <> xs',
+    replacement: 'case True{}:\n      e <> xs\n    case False{}:\n      e <> xs',
+    failure: /scan_identical_pair|duplicate_delivery_single_event|successful_merge_has_unique_ids/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {
@@ -98,15 +107,17 @@ for (const mutation of mutations) {
   const target = await mkdtemp(join(root, 'tmp/proof-negative-'));
   await mkdir(join(target, 'bend'));
   await mkdir(join(target, 'proof'));
+  await mkdir(join(target, 'test/proof'), { recursive: true });
   const modules = (await readdir(join(root, 'bend'))).filter(name => name.endsWith('.bend')).map(name => `bend/${name}`);
   const proofModules = (await readdir(join(root, 'proof'))).filter(name => name.endsWith('.bend')).map(name => `proof/${name}`);
-  for (const name of ['LAWS.bend', 'PROOF.bend', ...modules, ...proofModules]) {
+  for (const name of ['LAWS.bend', 'PROOF.bend', witnesses, ...modules, ...proofModules]) {
     await writeFile(join(target, name), await readFile(join(root, name)));
   }
   await writeFile(join(target, 'bend', mutation.file), normalized.replace(mutation.source, mutation.replacement));
-  const output = check(target, 1, mutation.failure);
+  const output = check(target, 1, mutation.failure, witnesses);
   assert.match(output, /SOME PROOFS FAIL/);
-  await writeFile(join(target, 'result.txt'), output);
+  const fullGate = check(target, 1, /SOME PROOFS FAIL/);
+  await writeFile(join(target, 'result.txt'), `${output}\n\nFull root proof gate:\n${fullGate}`);
   console.log(`Rejected ${mutation.name}: expected domain law failed (exit 1). Evidence: ${target}`);
 }
 console.log('Positive verdict and production-source mutation-negative proof checks passed.');

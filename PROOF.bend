@@ -6,6 +6,9 @@ import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
 import ./proof/Membership.bend as Membership
 import ./proof/Count.bend as Count
+import ./proof/Unique.bend as Unique
+import ./proof/Sort.bend as Sort
+import ./proof/ChronologicalSort.bend as ChronologicalSort
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -1595,3 +1598,42 @@ def Laws.chronological_sort_preserves_id_occurrences(events, id):
 
 def Laws.singleton_has_one_id_occurrence(event):
   Equal.cong(Bool, Nat, same => Nat.add(Count.weight(same), 0n), String.eq(Core.event_id(event), Core.event_id(event)), True{}, Laws.string_equality_reflexive(Core.event_id(event)))
+
+def Laws.id_count_refines_unique_counter(events, id):
+  match events:
+    case Nil{}:
+      {==}
+    case h <> t:
+      Equal.cong(Nat, Nat, n => Nat.add(Count.weight(String.eq(Core.event_id(h), id)), n),
+        Laws.id_count(t, id), Unique.id_count(t, id), Laws.id_count_refines_unique_counter(t, id))
+
+def Laws.successful_merge_has_unique_ids(left, right, output, id, success):
+  Equal.trans(Bool, Nat.is_le(Laws.id_count(output, id), 1n), Nat.is_le(Unique.id_count(output, id), 1n), True{},
+    Equal.cong(Nat, Bool, n => Nat.is_le(n, 1n), Laws.id_count(output, id), Unique.id_count(output, id), Laws.id_count_refines_unique_counter(output, id)),
+    Unique.successful_merge_has_at_most_one_occurrence_per_id(left, right, output, id, success))
+
+def Laws.successful_merge_has_structurally_unique_ids(left, right, output, success):
+  Unique.successful_merge_unique_bool(left, right, output, success)
+
+def OrderedScan.pick(condition: Bool, conflictId: String, result: T.MergeResult, proof: Laws.SuccessfulOrdered(result)) ->
+  Laws.SuccessfulOrdered(Bool.pick(T.MergeResult, condition, T.EventConflict{conflictId}, result)):
+  match condition:
+    case False{}:
+      proof
+    case True{}:
+      Unit{}
+
+def OrderedScan.scan(fuel: List<&2, T.DomainEvent>, +acc: List<&2, T.DomainEvent>, previous: Maybe<&2, T.DomainEvent>) -> Laws.SuccessfulOrdered(Core.scan_ids(fuel, acc, previous)):
+  match fuel previous:
+    case Nil{} _:
+      ChronologicalSort.sort_ordered(acc)
+    case h <> tail None{}:
+      OrderedScan.scan(tail, h <> acc, Some{h})
+    case +h <> +tail Some{+p}:
+      OrderedScan.pick(Bool.and(String.eq(Core.event_id(h), Core.event_id(p)), Bool.not(Core.event_eq(h, p))), Core.event_id(h),
+        Core.scan_ids(tail, Core.unique_put(h, acc, String.eq(Core.event_id(h), Core.event_id(p))), Some{h}),
+        OrderedScan.scan(tail, Core.unique_put(h, acc, String.eq(Core.event_id(h), Core.event_id(p))), Some{h}))
+
+def Laws.successful_merge_is_chronologically_ordered(left, right, output, success):
+  %success : Laws.SuccessfulOrdered(_)
+  OrderedScan.scan(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), Nil{}, None{})

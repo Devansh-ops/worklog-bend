@@ -5,6 +5,9 @@ import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
 import ./proof/Membership.bend as Membership
 import ./proof/Count.bend as Count
+import ./proof/Unique.bend as Unique
+import ./proof/Sort.bend as Sort
+import ./proof/ChronologicalSort.bend as ChronologicalSort
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -895,3 +898,37 @@ law chronological_sort_preserves_id_occurrences:
 law singleton_has_one_id_occurrence:
   for +event: T.DomainEvent
   {id_count([event], Core.event_id(event)) == 1n : Nat}
+
+law id_count_refines_unique_counter:
+  for events: List<&2, T.DomainEvent>
+  for +id: String
+  {id_count(events, id) == Unique.id_count(events, id) : Nat}
+
+law successful_merge_has_unique_ids:
+  for left: List<&2, T.DomainEvent>
+  for right: List<&2, T.DomainEvent>
+  for +output: List<&2, T.DomainEvent>
+  for +id: String
+  for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  {Nat.is_le(id_count(output, id), 1n) == True{} : Bool}
+
+law successful_merge_has_structurally_unique_ids:
+  for left: List<&2, T.DomainEvent>
+  for right: List<&2, T.DomainEvent>
+  for output: List<&2, T.DomainEvent>
+  for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  {Unique.unique_ids(output) == True{} : Bool}
+
+def SuccessfulOrdered(result: T.MergeResult) -> Type:
+  match result:
+    case T.EventConflict{conflictId}:
+      Unit
+    case T.Merged{events}:
+      {Sort.ordered(~Core.event_le, events) == True{} : Bool}
+
+law successful_merge_is_chronologically_ordered:
+  for left: List<&2, T.DomainEvent>
+  for right: List<&2, T.DomainEvent>
+  for output: List<&2, T.DomainEvent>
+  for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  {Sort.ordered(~Core.event_le, output) == True{} : Bool}

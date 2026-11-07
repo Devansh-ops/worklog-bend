@@ -218,3 +218,86 @@ law successful_merge_has_at_most_one_occurrence_per_id:
 def successful_merge_has_at_most_one_occurrence_per_id(left, right, output, id, success):
   %success : SuccessfulUnique(_, id)
   merge_unique(left, right, id)
+
+def nonzero_step(present: Bool, n: Nat, tail_present: Bool, member: {Bool.or(present, tail_present) == True{} : Bool},
+  continuation: {tail_present == True{} : Bool} -> {Nat.is_le(n, 0n) == False{} : Bool}) -> {Nat.is_le(Nat.add(Count.weight(present), n), 0n) == False{} : Bool}:
+  match present:
+    case False{}:
+      continuation(member)
+    case True{}:
+      {==}
+
+def member_count_not_zero(events: List<&2, T.DomainEvent>, +id: String, member: {Core.ids_contains(events, id) == True{} : Bool}) -> {Nat.is_le(id_count(events, id), 0n) == False{} : Bool}:
+  match events:
+    case Nil{}:
+      Empty.absurd({True{} == False{} : Bool}, Sort.false_clash(member))
+    case +h <> +tail:
+      nonzero_step(String.eq(Core.event_id(h), id), id_count(tail, id), Core.ids_contains(tail, id), member,
+        tail_member => member_count_not_zero(tail, id, tail_member))
+
+def repeated_head_count(+h: T.DomainEvent, +tail: List<&2, T.DomainEvent>, member: {Core.ids_contains(tail, Core.event_id(h)) == True{} : Bool}) -> {Nat.is_le(id_count(h <> tail, Core.event_id(h)), 1n) == False{} : Bool}:
+  Equal.trans(Bool, Nat.is_le(id_count(h <> tail, Core.event_id(h)), 1n), Nat.is_le(id_count(tail, Core.event_id(h)), 0n), False{},
+    Equal.cong(Bool, Bool, same => Nat.is_le(Nat.add(Count.weight(same), id_count(tail, Core.event_id(h))), 1n),
+      String.eq(Core.event_id(h), Core.event_id(h)), True{}, Order.string_equality_reflexive(Core.event_id(h))),
+    member_count_not_zero(tail, Core.event_id(h), member))
+
+def successor_still_repeated(n: Nat, repeated: {Nat.is_le(n, 1n) == False{} : Bool}) -> {Nat.is_le(1n+n, 1n) == False{} : Bool}:
+  match n:
+    case 0n:
+      Empty.absurd({True{} == False{} : Bool}, true_false_clash(repeated))
+    case 1n+p:
+      {==}
+
+def repeat_with_head(present: Bool, n: Nat, repeated: {Nat.is_le(n, 1n) == False{} : Bool}) -> {Nat.is_le(Nat.add(Count.weight(present), n), 1n) == False{} : Bool}:
+  match present:
+    case False{}:
+      repeated
+    case True{}:
+      successor_still_repeated(n, repeated)
+
+def RepeatedId(events: List<&2, T.DomainEvent>) -> Type:
+  &id: String -> {Nat.is_le(id_count(events, id), 1n) == False{} : Bool}
+
+def lift_counterexample(+h: T.DomainEvent, +tail: List<&2, T.DomainEvent>, counterexample: RepeatedId(tail)) -> RepeatedId(h <> tail):
+  (+id, repeated) = counterexample
+  (id, repeat_with_head(String.eq(Core.event_id(h), id), id_count(tail, id), repeated))
+
+def counterexample_step(+h: T.DomainEvent, +tail: List<&2, T.DomainEvent>, present: Bool,
+  link: {present == Core.ids_contains(tail, Core.event_id(h)) : Bool}, nonunique: {Bool.and(Bool.not(present), unique_ids(tail)) == False{} : Bool},
+  continuation: {unique_ids(tail) == False{} : Bool} -> RepeatedId(tail)) -> RepeatedId(h <> tail):
+  match present:
+    case False{}:
+      lift_counterexample(h, tail, continuation(nonunique))
+    case True{}:
+      (Core.event_id(h), repeated_head_count(h, tail, Equal.sym(Bool, True{}, Core.ids_contains(tail, Core.event_id(h)), link)))
+
+def unique_false_counterexample(events: List<&2, T.DomainEvent>, nonunique: {unique_ids(events) == False{} : Bool}) -> RepeatedId(events):
+  match events:
+    case Nil{}:
+      Empty.absurd(RepeatedId(Nil{}), true_false_clash(nonunique))
+    case +h <> +tail:
+      counterexample_step(h, tail, Core.ids_contains(tail, Core.event_id(h)), {==}, nonunique,
+        tail_nonunique => unique_false_counterexample(tail, tail_nonunique))
+
+def bool_not_false_is_true(value: Bool, reject: {value == False{} : Bool} -> Empty) -> {value == True{} : Bool}:
+  match value:
+    case False{}:
+      Empty.absurd({False{} == True{} : Bool}, reject({==}))
+    case True{}:
+      {==}
+
+def repeated_contradicts_bound(events: List<&2, T.DomainEvent>, counterexample: RepeatedId(events),
+  bound: @id: String -> {Nat.is_le(id_count(events, id), 1n) == True{} : Bool}) -> Empty:
+  (+id, repeated) = counterexample
+  Sort.false_clash(Equal.trans(Bool, False{}, Nat.is_le(id_count(events, id), 1n), True{},
+    Equal.sym(Bool, Nat.is_le(id_count(events, id), 1n), False{}, repeated), bound(id)))
+
+def unique_from_count_bounds(+events: List<&2, T.DomainEvent>,
+  bound: @id: String -> {Nat.is_le(id_count(events, id), 1n) == True{} : Bool}) -> {unique_ids(events) == True{} : Bool}:
+  bool_not_false_is_true(unique_ids(events),
+    nonunique => repeated_contradicts_bound(events, unique_false_counterexample(events, nonunique), bound))
+
+def successful_merge_unique_bool(+left: List<&2, T.DomainEvent>, +right: List<&2, T.DomainEvent>, +output: List<&2, T.DomainEvent>,
+  +success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}) -> {unique_ids(output) == True{} : Bool}:
+  unique_from_count_bounds(output,
+    id => successful_merge_has_at_most_one_occurrence_per_id(left, right, output, id, success))
