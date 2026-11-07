@@ -654,3 +654,140 @@ law order_has_distinct_witness:
 
 def order_has_distinct_witness():
   {==}
+
+# This selector deliberately matches the actual event key/tie selector shape.
+def lex_choose(ak: String, at: String, bk: String, bt: String, same: Bool) -> Bool:
+  match same:
+    case True{}:
+      String.is_le(at, bt)
+    case False{}:
+      String.is_le(ak, bk)
+
+def lex_le(+ak: String, at: String, +bk: String, bt: String) -> Bool:
+  lex_choose(ak, at, bk, bt, String.eq(ak, bk))
+
+def lex_order(ak: String, at: String, bk: String, bt: String) -> Cmp:
+  compose(String.order(ak, bk), String.order(at, bt))
+
+def choose_pick(+ak: String, +at: String, +bk: String, +bt: String, +same: Bool) ->
+  {lex_choose(ak, at, bk, bt, same) == Bool.pick(Bool, same, String.is_le(at, bt), String.is_le(ak, bk)) : Bool}:
+  match same:
+    case False{}:
+      {==}
+    case True{}:
+      {==}
+
+def cmp_lex_select(+key: Cmp, +tie: Cmp) ->
+  {Bool.pick(Bool, Cmp.is_eq(key), Cmp.is_le(tie), Cmp.is_le(key)) == Cmp.is_le(compose(key, tie)) : Bool}:
+  match key:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+def lex_le_comparison(+ak: String, +at: String, +bk: String, +bt: String) ->
+  {lex_le(ak, at, bk, bt) == Cmp.is_le(lex_order(ak, at, bk, bt)) : Bool}:
+  Equal.trans(Bool, lex_le(ak, at, bk, bt), Bool.pick(Bool, String.eq(ak, bk), String.is_le(at, bt), String.is_le(ak, bk)),
+    Cmp.is_le(lex_order(ak, at, bk, bt)), choose_pick(ak, at, bk, bt, String.eq(ak, bk)), cmp_lex_select(String.order(ak, bk), String.order(at, bt)))
+
+def lex_order_reflexive(+key: String, +tie: String) -> {lex_order(key, tie, key, tie) == EQ{} : Cmp}:
+  Equal.trans(Cmp, compose(String.order(key, key), String.order(tie, tie)), compose(EQ{}, String.order(tie, tie)), EQ{},
+    Equal.cong(Cmp, Cmp, order => compose(order, String.order(tie, tie)), String.order(key, key), EQ{}, string_order_reflexive(key)),
+    string_order_reflexive(tie))
+
+def lex_chain(+ak: String, +at: String, +bk: String, +bt: String, +ck: String, +ct: String) ->
+  {chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ck, ct), lex_order(ak, at, ck, ct)) == True{} : Bool}:
+  compose_chain(String.order(ak, bk), String.order(bk, ck), String.order(ak, ck),
+    String.order(at, bt), String.order(bt, ct), String.order(at, ct), string_chain(ak, bk, ck), string_chain(at, bt, ct))
+
+def lex_loop_link(+ak: String, +at: String, +bk: String, +bt: String) ->
+  {chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), EQ{}) == True{} : Bool}:
+  Equal.trans(Bool, chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), EQ{}),
+    chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), lex_order(ak, at, ak, at)), True{},
+    Equal.sym(Bool, chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), lex_order(ak, at, ak, at)),
+      chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), EQ{}),
+      Equal.cong(Cmp, Bool, order => chain(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), order),
+        lex_order(ak, at, ak, at), EQ{}, lex_order_reflexive(ak, at))),
+    lex_chain(ak, at, bk, bt, ak, at))
+
+def lex_le_result(+ak: String, +at: String, +bk: String, +bt: String,
+  accepted: {lex_le(ak, at, bk, bt) == True{} : Bool}) -> {Cmp.is_le(lex_order(ak, at, bk, bt)) == True{} : Bool}:
+  Equal.trans(Bool, Cmp.is_le(lex_order(ak, at, bk, bt)), lex_le(ak, at, bk, bt), True{},
+    Equal.sym(Bool, lex_le(ak, at, bk, bt), Cmp.is_le(lex_order(ak, at, bk, bt)), lex_le_comparison(ak, at, bk, bt)), accepted)
+
+def lex_le_refl(+key: String, +tie: String) -> {lex_le(key, tie, key, tie) == True{} : Bool}:
+  Equal.trans(Bool, lex_le(key, tie, key, tie), Cmp.is_le(lex_order(key, tie, key, tie)), True{},
+    lex_le_comparison(key, tie, key, tie),
+    Equal.cong(Cmp, Bool, order => Cmp.is_le(order), lex_order(key, tie, key, tie), EQ{}, lex_order_reflexive(key, tie)))
+
+def lex_le_trans(+ak: String, +at: String, +bk: String, +bt: String, +ck: String, +ct: String,
+  ab: {lex_le(ak, at, bk, bt) == True{} : Bool}, bc: {lex_le(bk, bt, ck, ct) == True{} : Bool}) ->
+  {lex_le(ak, at, ck, ct) == True{} : Bool}:
+  Equal.trans(Bool, lex_le(ak, at, ck, ct), Cmp.is_le(lex_order(ak, at, ck, ct)), True{},
+    lex_le_comparison(ak, at, ck, ct),
+    chain_le(lex_order(ak, at, bk, bt), lex_order(bk, bt, ck, ct), lex_order(ak, at, ck, ct),
+      lex_le_result(ak, at, bk, bt, ab), lex_le_result(bk, bt, ck, ct, bc), lex_chain(ak, at, bk, bt, ck, ct)))
+
+def or_cong(+a: Bool, +b: Bool, +c: Bool, +d: Bool, ac: {a == c : Bool}, bd: {b == d : Bool}) ->
+  {Bool.or(a, b) == Bool.or(c, d) : Bool}:
+  Equal.trans(Bool, Bool.or(a, b), Bool.or(c, b), Bool.or(c, d),
+    Equal.cong(Bool, Bool, value => Bool.or(value, b), a, c, ac), Equal.cong(Bool, Bool, value => Bool.or(c, value), b, d, bd))
+
+def lex_le_total(+ak: String, +at: String, +bk: String, +bt: String) ->
+  {Bool.or(lex_le(ak, at, bk, bt), lex_le(bk, bt, ak, at)) == True{} : Bool}:
+  Equal.trans(Bool, Bool.or(lex_le(ak, at, bk, bt), lex_le(bk, bt, ak, at)),
+    Bool.or(Cmp.is_le(lex_order(ak, at, bk, bt)), Cmp.is_le(lex_order(bk, bt, ak, at))), True{},
+    or_cong(lex_le(ak, at, bk, bt), lex_le(bk, bt, ak, at), Cmp.is_le(lex_order(ak, at, bk, bt)), Cmp.is_le(lex_order(bk, bt, ak, at)),
+      lex_le_comparison(ak, at, bk, bt), lex_le_comparison(bk, bt, ak, at)),
+    chain_total(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at), lex_loop_link(ak, at, bk, bt)))
+
+def compose_key_equal(+key: Cmp, +tie: Cmp, equality: {compose(key, tie) == EQ{} : Cmp}) -> {key == EQ{} : Cmp}:
+  match key:
+    case LT{}:
+      Empty.absurd({LT{} == EQ{} : Cmp}, false_not_true(Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), LT{}, EQ{}, equality)))
+    case EQ{}:
+      {==}
+    case GT{}:
+      Empty.absurd({GT{} == EQ{} : Cmp}, false_not_true(Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), GT{}, EQ{}, equality)))
+
+def compose_tie_equal(+key: Cmp, +tie: Cmp, +equality: {compose(key, tie) == EQ{} : Cmp}) -> {tie == EQ{} : Cmp}:
+  Equal.trans(Cmp, tie, compose(key, tie), EQ{},
+    Equal.sym(Cmp, compose(key, tie), tie, Equal.cong(Cmp, Cmp, c => compose(c, tie), key, EQ{}, compose_key_equal(key, tie, equality))), equality)
+
+def lex_order_antisym(+ak: String, +at: String, +bk: String, +bt: String,
+  ab: {lex_le(ak, at, bk, bt) == True{} : Bool}, ba: {lex_le(bk, bt, ak, at) == True{} : Bool}) ->
+  {lex_order(ak, at, bk, bt) == EQ{} : Cmp}:
+  chain_antisym(lex_order(ak, at, bk, bt), lex_order(bk, bt, ak, at),
+    lex_le_result(ak, at, bk, bt, ab), lex_le_result(bk, bt, ak, at, ba), lex_loop_link(ak, at, bk, bt))
+
+def lex_le_keys_equal(+ak: String, +at: String, +bk: String, +bt: String,
+  ab: {lex_le(ak, at, bk, bt) == True{} : Bool}, ba: {lex_le(bk, bt, ak, at) == True{} : Bool}) -> {ak == bk : String}:
+  string_order_equality_sound(ak, bk,
+    compose_key_equal(String.order(ak, bk), String.order(at, bt), lex_order_antisym(ak, at, bk, bt, ab, ba)))
+
+def lex_le_ties_equal(+ak: String, +at: String, +bk: String, +bt: String,
+  ab: {lex_le(ak, at, bk, bt) == True{} : Bool}, ba: {lex_le(bk, bt, ak, at) == True{} : Bool}) -> {at == bt : String}:
+  string_order_equality_sound(at, bt,
+    compose_tie_equal(String.order(ak, bk), String.order(at, bt), lex_order_antisym(ak, at, bk, bt, ab, ba)))
+
+def lex_le_antisym(+ak: String, +at: String, +bk: String, +bt: String,
+  +ab: {lex_le(ak, at, bk, bt) == True{} : Bool}, +ba: {lex_le(bk, bt, ak, at) == True{} : Bool}) -> {(ak, at) == (bk, bt) : String & String}:
+  Equal.trans(String & String, (ak, at), (bk, at), (bk, bt),
+    Equal.cong(String, String & String, key => (key, at), ak, bk, lex_le_keys_equal(ak, at, bk, bt, ab, ba)),
+    Equal.cong(String, String & String, tie => (bk, tie), at, bt, lex_le_ties_equal(ak, at, bk, bt, ab, ba)))
+
+law lex_has_distinct_witness:
+  {Bool.and(lex_le("same", "a", "same", "b"), Bool.not(lex_le("same", "b", "same", "a"))) == True{} : Bool}
+
+def lex_has_distinct_witness():
+  {==}
+
+def string_equality_from_equal(+a: String, +b: String, equality: {a == b : String}) -> {String.eq(a, b) == True{} : Bool}:
+  Equal.trans(Bool, String.eq(a, b), String.eq(a, a), True{},
+    Equal.sym(Bool, String.eq(a, a), String.eq(a, b), Equal.cong(String, Bool, value => String.eq(a, value), a, b, equality)),
+    string_equality_reflexive(a))
+
+def string_eq_true_reverse(+a: String, +b: String, equality: {String.eq(a, b) == True{} : Bool}) -> {String.eq(b, a) == True{} : Bool}:
+  string_equality_from_equal(b, a, Equal.sym(String, a, b, string_equality_sound(a, b, equality)))
