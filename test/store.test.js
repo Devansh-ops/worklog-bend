@@ -194,8 +194,7 @@ await checkAsync('pending changes survive a reload', async () => {
 
 await checkAsync('board snapshot is valid JSON with per-status counts', async () => {
   localStorage.clear();
-  const s = (await loadedStore());
-  s.remoteEvents = unionEvents(laptop, desktop);
+  const s = await loadedStore(unionEvents(laptop, desktop));
   s.stage(makeEvent('task.note', { taskId: T2, text: 'n' }));
   const board = JSON.parse(s.previewCommit().files.find((f) => f.path === 'data/board.json').text);
   eq(board.counts.in_progress, 1);
@@ -253,10 +252,7 @@ check('an empty month is still valid JSON', () => {
 
 await checkAsync('a push rewrites only the month it touched', async () => {
   localStorage.clear();
-  const s = (await loadedStore());
-  s.loadedMonths = ['2024-01', '2026-09'];
-  s.monthStats = new Map([['2024-01', { month: '2024-01', events: 5, days: 3 }], ['2026-09', { month: '2026-09' }]]);
-  s.remoteEvents = [ev('2024-01-05T09:00:00.000Z', 'task.create', { taskId: T1, title: 'ancient' })];
+  const s = await loadedStore([ev('2024-01-05T09:00:00.000Z', 'task.create', { taskId: T1, title: 'ancient' })]);
   s.stage({ ...makeEvent('task.note', { taskId: T1, text: 'today' }), ts: '2026-09-17T09:00:00.000Z' });
   const paths = s.previewCommit().files.map((f) => f.path);
   ok(paths.includes('data/log/2026/09.json'), 'the touched month is written');
@@ -349,9 +345,7 @@ check('two events in the same millisecond are split correctly by the checkpoint'
 
 await checkAsync('the snapshot records what it folded in, so a boot can trust it', async () => {
   localStorage.clear();
-  const s = (await loadedStore());
-  s.loadedMonths = ['2026-09'];
-  s.remoteEvents = [];
+  const s = await loadedStore([]);
   const staged = { ...makeEvent('task.create', { taskId: T2, title: 'x' }), ts: '2026-09-17T09:00:00.000Z' };
   s.stage(staged);
   const board = JSON.parse(s.previewCommit().files.find((f) => f.path === 'data/board.json').text);
