@@ -1,6 +1,7 @@
 import Base
 import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
+import ./bend/Publication.bend as Publication
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -274,3 +275,141 @@ law unknown_event_withholds_context:
   for canonical: String
   for sendNotes: Bool
   {Core.context(Core.apply_event(state, T.Ev{eventId, instant, day, T.Opaque{kind}, canonical}), sendNotes) == Nil{} : List<&2, T.ContextTask>}
+
+def false_true_discriminator(value: Bool) -> Type:
+  match value:
+    case False{}:
+      Empty
+    case True{}:
+      Unit
+
+law false_is_not_true:
+  for contradiction: {False{} == True{} : Bool}
+  Empty
+
+law bool_order_equality_sound:
+  for a: Bool
+  for b: Bool
+  for equality: {Bool.cmp(a, b) == EQ{} : Cmp}
+  {a == b : Bool}
+
+law word_cmp_fin_tail:
+  for a: Bool
+  for b: Bool
+  for tail: Cmp
+  for equality: {Word.cmp.fin(a, b, tail) == EQ{} : Cmp}
+  {tail == EQ{} : Cmp}
+
+law word_cmp_fin_head:
+  for a: Bool
+  for b: Bool
+  for tail: Cmp
+  for tail_equal: {tail == EQ{} : Cmp}
+  for equality: {Word.cmp.fin(a, b, tail) == EQ{} : Cmp}
+  {Bool.cmp(a, b) == EQ{} : Cmp}
+
+law word_order_equality_sound:
+  for n: Nat
+  for a: Word(n)
+  for b: Word(n)
+  for +equality: {Word.cmp(n, a, b) == EQ{} : Cmp}
+  {a == b : Word(n)}
+
+law u32_order_equality_sound:
+  for a: U32
+  for b: U32
+  for equality: {U32.cmp(a, b) == EQ{} : Cmp}
+  {a == b : U32}
+
+law string_order_go_lt:
+  for a: String
+  for b: String
+  {String.order.go(a, b, LT{}) == LT{} : Cmp}
+
+law string_order_go_gt:
+  for a: String
+  for b: String
+  {String.order.go(a, b, GT{}) == GT{} : Cmp}
+
+law string_order_go_eq_premise:
+  for a: String
+  for b: String
+  for order: Cmp
+  for equality: {String.order.go(a, b, order) == EQ{} : Cmp}
+  {order == EQ{} : Cmp}
+
+law string_order_equality_sound:
+  for a: String
+  for b: String
+  for +equality: {String.order(a, b) == EQ{} : Cmp}
+  {a == b : String}
+
+law cmp_is_eq_sound:
+  for order: Cmp
+  for equality: {Cmp.is_eq(order) == True{} : Bool}
+  {order == EQ{} : Cmp}
+
+law string_equality_sound:
+  for +a: String
+  for +b: String
+  for equality: {String.eq(a, b) == True{} : Bool}
+  {a == b : String}
+
+law and_false_right:
+  for value: Bool
+  {Bool.and(value, False{}) == False{} : Bool}
+
+law and_true_right:
+  for a: Bool
+  for b: Bool
+  for equality: {Bool.and(a, b) == True{} : Bool}
+  {b == True{} : Bool}
+
+law publication_requires_exact_plan:
+  for schemas: List<&2, U32>
+  for +approvedPlan: String
+  for +executionPlan: String
+  for accepted: {Publication.approved(schemas, approvedPlan, executionPlan) == True{} : Bool}
+  {approvedPlan == executionPlan : String}
+
+law bool_not_true_is_false:
+  for value: Bool
+  for reject: {value == True{} : Bool} -> Empty
+  {value == False{} : Bool}
+
+law publication_rejects_changed_plan:
+  for +schemas: List<&2, U32>
+  for +approvedPlan: String
+  for +executionPlan: String
+  for different: {approvedPlan != executionPlan : String}
+  {Publication.approved(schemas, approvedPlan, executionPlan) == False{} : Bool}
+
+law unsupported_schema_anywhere:
+  for prefix: List<&2, U32>
+  for suffix: List<&2, U32>
+  for version: U32
+  for not_one: {U32.is_eq(version, 1) == False{} : Bool}
+  for not_two: {U32.is_eq(version, 2) == False{} : Bool}
+  {Publication.schemas_compatible(List.append(&2, U32, prefix, version <> suffix)) == False{} : Bool}
+
+law publication_rejects_unsupported_schema_anywhere:
+  for prefix: List<&2, U32>
+  for suffix: List<&2, U32>
+  for version: U32
+  for approvedPlan: String
+  for executionPlan: String
+  for not_one: {U32.is_eq(version, 1) == False{} : Bool}
+  for not_two: {U32.is_eq(version, 2) == False{} : Bool}
+  {Publication.approved(List.append(&2, U32, prefix, version <> suffix), approvedPlan, executionPlan) == False{} : Bool}
+
+law approved_publication_exists:
+  exs plan: String
+  {Publication.approved([1, 2], plan, plan) == True{} : Bool}
+
+# Concrete counterexample witnesses also keep mutation checks independent of
+# proof scripts that could need repair after a harmless definition refactor.
+law future_schema_refused_witness:
+  {Publication.approved([1, 999, 2], "same plan", "same plan") == False{} : Bool}
+
+law changed_plan_refused_witness:
+  {Publication.approved([1, 2], "approved plan", "substituted plan") == False{} : Bool}

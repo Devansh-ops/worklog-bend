@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile, writeFile, mkdir, mkdtemp } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp, readdir } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,31 +19,47 @@ function check(cwd, expectedStatus, expectedOutput) {
 }
 
 check(root, 0, /ALL PROOFS CHECK/);
-const core = await readFile(join(root, 'bend/Core.bend'), 'utf8');
 const mutations = [
   {
     name: 'notes-off leak',
+    file: 'Core.bend',
     source: 'case False{}:\n      Nil{}\n    case True{}:\n      notes',
     replacement: 'case False{}:\n      notes\n    case True{}:\n      notes',
     failure: /notes_off_omits_all_direct_notes|notes_off_context_has_no_notes/,
   },
   {
     name: 'private-task leak',
+    file: 'Core.bend',
     source: 'Bool.and(Bool.not(private), Bool.not(deleted))',
     replacement: 'Bool.not(deleted)',
     failure: /private_is_ineligible|private_context_head_is_omitted/,
   },
+  {
+    name: 'publication schema bypass',
+    file: 'Publication.bend',
+    source: 'Bool.and(schemas_compatible(schemas), String.eq(approved_plan, execution_plan))',
+    replacement: 'String.eq(approved_plan, execution_plan)',
+    failure: /future_schema_refused_witness/,
+  },
+  {
+    name: 'publication plan substitution',
+    file: 'Publication.bend',
+    source: 'Bool.and(schemas_compatible(schemas), String.eq(approved_plan, execution_plan))',
+    replacement: 'schemas_compatible(schemas)',
+    failure: /changed_plan_refused_witness/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {
-  const normalized = core.replaceAll('\r\n', '\n');
+  const normalized = (await readFile(join(root, 'bend', mutation.file), 'utf8')).replaceAll('\r\n', '\n');
   assert.equal(normalized.split(mutation.source).length, 2, `Mutation must match exactly once: ${mutation.name}`);
   const target = await mkdtemp(join(root, 'tmp/proof-negative-'));
   await mkdir(join(target, 'bend'));
-  for (const name of ['LAWS.bend', 'PROOF.bend', 'bend/Types.bend']) {
+  const modules = (await readdir(join(root, 'bend'))).filter(name => name.endsWith('.bend')).map(name => `bend/${name}`);
+  for (const name of ['LAWS.bend', 'PROOF.bend', ...modules]) {
     await writeFile(join(target, name), await readFile(join(root, name)));
   }
-  await writeFile(join(target, 'bend/Core.bend'), normalized.replace(mutation.source, mutation.replacement));
+  await writeFile(join(target, 'bend', mutation.file), normalized.replace(mutation.source, mutation.replacement));
   const output = check(target, 1, mutation.failure);
   assert.match(output, /SOME PROOFS FAIL/);
   await writeFile(join(target, 'result.txt'), output);

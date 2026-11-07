@@ -34,7 +34,7 @@ No proof may replace these claims with an assumption that its own result is corr
 
 Checked against the exact core implementation from commit `fb6d379` (the proof worktree cherry-pick is `0998dee`). Bend 2.0.40 at source commit `70607d7f740e3b3f4a1edc61069df8ab88491696`, Bun 1.3.10, and Lean 4.34.0 accepted root `PROOF.bend --verdict` with `ALL PROOFS CHECK` and exit 0. The source and toolchain version/integrity checks are independent of this law review.
 
-There are 45 law declarations. This count includes supporting comparator/equality lemmas and two existential witnesses, and must not be described as 45 independent application guarantees.
+There are 67 law declarations. This count includes supporting comparator/equality lemmas, three existential witnesses, and two concrete publication counterexample witnesses. It must not be described as 67 independent application guarantees.
 
 | Checked scope | Actual claim |
 | --- | --- |
@@ -44,8 +44,9 @@ There are 45 law declarations. This count includes supporting comparator/equalit
 | Notes | Notes-off projection contains no direct notes, for every task and every input task list. The context type has no old-summary/report/history field. This does not certify actual provider request bytes or the separately disclosed free text. |
 | Pending | Failed publication and empty approval preserve the whole pending list. An event absent from the exact committed event collection remains pending. |
 | Schema | Versions numerically unequal to both supported versions are refused by the domain version predicate. An explicit schema 999 witness inhabits these premises. No write-plan/migration theorem is implied. |
+| Exact approval | Acceptance by the actual Publication.approved gate implies propositional equality of the complete approved/execution canonical strings. Semantically different strings are refused. An unsupported version anywhere in an arbitrary prefix/version/suffix schema list makes the approval gate false. Host encoding completeness and effect dispatch remain separate obligations. |
 | Identity and duplicate delivery | Universal full-field Event equality reflexivity includes all payload variants and retained canonical content. Two identical deliveries of any one complete event merge to that one event. This is not a theorem about arbitrary input-list merge algebra. |
-| Supporting order and witnesses | Word/U32/String comparator reflexivity and String equality reflexivity. A concrete public live task inhabits eligibility, and schema 999 inhabits the refusal premises. |
+| Supporting order and witnesses | Word/U32/String comparator reflexivity and equality soundness; String.eq true implies actual propositional equality, rather than an assumed equality flag. A concrete public live task inhabits eligibility, schema 999 inhabits refusal premises, and a supported exact plan inhabits approval. |
 
 The complete verification command in this worktree used the pinned sibling wrapper:
 
@@ -55,7 +56,7 @@ $env:BEND_LINUX_WRAPPER = 'C:\Users\desehgal\Documents\temp\worklog-bend-toolcha
 node test/proof/negative.mjs
 ```
 
-Both returned exit 0. The mutation harness first requires the unmodified root verdict to succeed, then makes isolated copies of the actual production core under ignored `tmp/proof-negative-*` directories. Deliberately returning notes with notes-off failed at `Laws.notes_off_omits_all_direct_notes` with exit 1. Deliberately ignoring the private flag failed at `Laws.private_is_ineligible` with exit 1. The harness requires the named law failure, so a missing compiler/kernel cannot masquerade as a successful rejection. It preserves diagnostic text in each temporary directory and changes no production files. After integration the default wrapper path is `scripts/bend-linux.sh`, so the environment override is unnecessary.
+Both returned exit 0. The mutation harness first requires the unmodified root verdict to succeed, then makes isolated copies of the actual production modules under ignored `tmp/proof-negative-*` directories. Deliberately returning notes with notes-off failed at `Laws.notes_off_omits_all_direct_notes` with exit 1. Deliberately ignoring the private flag failed at `Laws.private_is_ineligible` with exit 1. Bypassing the publication schema gate failed the concrete `[1,999,2]` witness, and dropping the plan equality check failed the substituted-plan witness. Those concrete witnesses run before general publication proofs so a proof-script dependency on definition shape cannot masquerade as a false-property counterexample. The harness requires named law failures, so a missing compiler/kernel cannot masquerade as a successful rejection. It preserves diagnostic text in each temporary directory and changes no production files. After integration the default wrapper path is `scripts/bend-linux.sh`, so the environment override is unnecessary.
 
 Native Windows Bun accepted single-file checks but the pinned compiler rejected ordinary multi-file Windows import paths. These domain checks therefore used the working WSL route. The compiler source was not modified to bypass that limitation.
 

@@ -2,6 +2,13 @@ import Base
 import ./LAWS.bend as Laws
 import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
+import ./bend/Publication.bend as Publication
+
+def Laws.future_schema_refused_witness():
+  {==}
+
+def Laws.changed_plan_refused_witness():
+  {==}
 
 def Laws.word_order_reflexive(n, w):
   match n:
@@ -341,3 +348,174 @@ def Laws.unknown_event_withholds_context(state, eventId, instant, day, kind, can
   match state:
     case T.State{tasks, summaries, reports, issues, complete}:
       {==}
+
+def Laws.false_is_not_true(contradiction):
+  %Equal.sym(Bool, False{}, True{}, contradiction) : Laws.false_true_discriminator(_)
+  Unit{}
+
+def Laws.bool_order_equality_sound(a, b, equality):
+  match a b:
+    case False{} False{}:
+      {==}
+    case False{} True{}:
+      Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), LT{}, EQ{}, equality)
+    case True{} False{}:
+      Equal.sym(Bool, False{}, True{}, Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), GT{}, EQ{}, equality))
+    case True{} True{}:
+      {==}
+
+def Laws.word_cmp_fin_tail(a, b, tail, equality):
+  match tail:
+    case LT{}:
+      equality
+    case EQ{}:
+      {==}
+    case GT{}:
+      equality
+
+def Laws.word_cmp_fin_head(a, b, tail, tail_equal, equality):
+  Equal.trans(Cmp, Bool.cmp(a, b), Word.cmp.fin(a, b, tail), EQ{},
+    Equal.sym(Cmp, Word.cmp.fin(a, b, tail), Bool.cmp(a, b),
+      Equal.cong(Cmp, Cmp, c => Word.cmp.fin(a, b, c), tail, EQ{}, tail_equal)),
+    equality)
+
+def Laws.word_order_equality_sound(n, a, b, equality):
+  match n:
+    case 0n:
+      match a b:
+        case WNil{} WNil{}:
+          {==}
+    case Succ{+p}:
+      match a b:
+        case WCon{+ah, +at} WCon{+bh, +bt}:
+          +tail_order = Laws.word_cmp_fin_tail(ah, bh, Word.cmp(p, at, bt), equality)
+          head_order = Laws.word_cmp_fin_head(ah, bh, Word.cmp(p, at, bt), tail_order, equality)
+          head_equal = Laws.bool_order_equality_sound(ah, bh, head_order)
+          tail_equal = Laws.word_order_equality_sound(p, at, bt, tail_order)
+          Equal.trans(Word(1n+p), WCon{ah, at}, WCon{bh, at}, WCon{bh, bt},
+            Equal.cong(Bool, Word(1n+p), bit => WCon{bit, at}, ah, bh, head_equal),
+            Equal.cong(Word(p), Word(1n+p), bits => WCon{bh, bits}, at, bt, tail_equal))
+
+def Laws.u32_order_equality_sound(a, b, equality):
+  match a b:
+    case U32{x} U32{y}:
+      Equal.cong(Word(32n), U32, bits => U32{bits}, x, y,
+        Laws.word_order_equality_sound(32n, x, y, equality))
+
+def Laws.string_order_go_lt(a, b):
+  match a b:
+    case SNil{} SNil{}:
+      {==}
+    case SNil{} SCon{h, t}:
+      {==}
+    case SCon{h, t} SNil{}:
+      {==}
+    case SCon{Chr{x}, at} SCon{Chr{y}, bt}:
+      {==}
+
+def Laws.string_order_go_gt(a, b):
+  match a b:
+    case SNil{} SNil{}:
+      {==}
+    case SNil{} SCon{h, t}:
+      {==}
+    case SCon{h, t} SNil{}:
+      {==}
+    case SCon{Chr{x}, at} SCon{Chr{y}, bt}:
+      {==}
+
+def Laws.string_order_go_eq_premise(a, b, order, equality):
+  match order:
+    case LT{}:
+      Equal.trans(Cmp, LT{}, String.order.go(a, b, LT{}), EQ{},
+        Equal.sym(Cmp, String.order.go(a, b, LT{}), LT{}, Laws.string_order_go_lt(a, b)), equality)
+    case EQ{}:
+      {==}
+    case GT{}:
+      Equal.trans(Cmp, GT{}, String.order.go(a, b, GT{}), EQ{},
+        Equal.sym(Cmp, String.order.go(a, b, GT{}), GT{}, Laws.string_order_go_gt(a, b)), equality)
+
+def Laws.string_order_equality_sound(a, b, equality):
+  match a b:
+    case SNil{} SNil{}:
+      {==}
+    case SNil{} SCon{h, t}:
+      Empty.absurd({SNil{} == SCon{h, t} : String},
+        Laws.false_is_not_true(Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), LT{}, EQ{}, equality)))
+    case SCon{h, t} SNil{}:
+      Empty.absurd({SCon{h, t} == SNil{} : String},
+        Laws.false_is_not_true(Equal.cong(Cmp, Bool, c => Cmp.is_eq(c), GT{}, EQ{}, equality)))
+    case SCon{Chr{+x}, +at} SCon{Chr{+y}, +bt}:
+      +head_order = Laws.string_order_go_eq_premise(at, bt, U32.cmp(x, y), equality)
+      head_equal = Laws.u32_order_equality_sound(x, y, head_order)
+      tail_order = Equal.trans(Cmp, String.order(at, bt), String.order.go(at, bt, U32.cmp(x, y)), EQ{},
+        Equal.sym(Cmp, String.order.go(at, bt, U32.cmp(x, y)), String.order(at, bt),
+          Equal.cong(Cmp, Cmp, c => String.order.go(at, bt, c), U32.cmp(x, y), EQ{}, head_order)), equality)
+      tail_equal = Laws.string_order_equality_sound(at, bt, tail_order)
+      Equal.trans(String, SCon{Chr{x}, at}, SCon{Chr{y}, at}, SCon{Chr{y}, bt},
+        Equal.cong(U32, String, code => SCon{Chr{code}, at}, x, y, head_equal),
+        Equal.cong(String, String, tail => SCon{Chr{y}, tail}, at, bt, tail_equal))
+
+def Laws.cmp_is_eq_sound(order, equality):
+  match order:
+    case LT{}:
+      Empty.absurd({LT{} == EQ{} : Cmp}, Laws.false_is_not_true(equality))
+    case EQ{}:
+      {==}
+    case GT{}:
+      Empty.absurd({GT{} == EQ{} : Cmp}, Laws.false_is_not_true(equality))
+
+def Laws.string_equality_sound(a, b, equality):
+  Laws.string_order_equality_sound(a, b,
+    Laws.cmp_is_eq_sound(String.order(a, b), equality))
+
+def Laws.and_false_right(value):
+  match value:
+    case False{}:
+      {==}
+    case True{}:
+      {==}
+
+def Laws.and_true_right(a, b, equality):
+  match a:
+    case False{}:
+      Empty.absurd({b == True{} : Bool}, Laws.false_is_not_true(equality))
+    case True{}:
+      equality
+
+def Laws.publication_requires_exact_plan(schemas, approvedPlan, executionPlan, accepted):
+  Laws.string_equality_sound(approvedPlan, executionPlan,
+    Laws.and_true_right(Publication.schemas_compatible(schemas), String.eq(approvedPlan, executionPlan), accepted))
+
+def Laws.bool_not_true_is_false(value, reject):
+  match value:
+    case False{}:
+      {==}
+    case True{}:
+      Empty.absurd({True{} == False{} : Bool}, reject({==}))
+
+def Laws.publication_rejects_changed_plan(schemas, approvedPlan, executionPlan, different):
+  Laws.bool_not_true_is_false(Publication.approved(schemas, approvedPlan, executionPlan),
+    accepted => different(Laws.publication_requires_exact_plan(schemas, approvedPlan, executionPlan, accepted)))
+
+def Laws.unsupported_schema_anywhere(prefix, suffix, version, not_one, not_two):
+  match prefix:
+    case Nil{}:
+      Equal.cong(Bool, Bool, allowed => Bool.and(allowed, Publication.schemas_compatible(suffix)),
+        Core.schema_allowed(version), False{}, Laws.unrecognized_schema_is_refused(version, not_one, not_two))
+    case schema <> rest:
+      Equal.trans(Bool,
+        Publication.schemas_compatible(List.append(&2, U32, schema <> rest, version <> suffix)),
+        Bool.and(Core.schema_allowed(schema), False{}), False{},
+        Equal.cong(Bool, Bool, compatible => Bool.and(Core.schema_allowed(schema), compatible),
+          Publication.schemas_compatible(List.append(&2, U32, rest, version <> suffix)), False{},
+          Laws.unsupported_schema_anywhere(rest, suffix, version, not_one, not_two)),
+        Laws.and_false_right(Core.schema_allowed(schema)))
+
+def Laws.publication_rejects_unsupported_schema_anywhere(prefix, suffix, version, approvedPlan, executionPlan, not_one, not_two):
+  Equal.cong(Bool, Bool, compatible => Bool.and(compatible, String.eq(approvedPlan, executionPlan)),
+    Publication.schemas_compatible(List.append(&2, U32, prefix, version <> suffix)), False{},
+    Laws.unsupported_schema_anywhere(prefix, suffix, version, not_one, not_two))
+
+def Laws.approved_publication_exists():
+  ("synthetic exact write plan", {==})
