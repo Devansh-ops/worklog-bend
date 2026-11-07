@@ -110,32 +110,28 @@ before creating anything. If the repo already holds a log it stops rather than g
 open the app and point it at the repo instead. It never touches tokens — you still paste one into
 the app.
 
-## Running it on your own machine instead
+## Running and hosting this rebuild
 
-Three ways in, and they are interchangeable — the app is the same code and your log is the same
-repo, so you can switch whenever:
+From this checkout:
 
-| | How | When it fits |
-| --- | --- | --- |
-| Hosted | open the link | you just want to use it |
-| npm | `npx work-log` (not published yet) | you have Node and want a pinned version, or a local AI server |
-| Clone | `git clone …` then `python3 -m http.server 8000` | you want to change the app |
+```powershell
+npm --loglevel verbose start
+npm --loglevel verbose start -- --demo --no-open
+```
 
-`npx work-log` serves the package's own files on `http://127.0.0.1:8765` and opens a browser.
-`--demo` opens the sample board, `--no-open` just prints the URL, `--port` and `--host` do what you
-would expect (`--host 0.0.0.0` if you want to reach it from a phone on the same network).
+The CLI serves this checkout's files, prints its local URL and opens a browser
+unless `--no-open` is supplied. `--port` and `--host` select the listener.
+The npm name `work-log` is retained for compatibility; this rebuild has not been
+published to npm. Use this checkout to run its actual generated Bend modules.
 
-One reason to prefer local: a page served over `https://` cannot call an `http://localhost` model
-server, so the Ollama / LM Studio tier needs either the CORS setup described above or an app served
-over plain HTTP — which is what this gives you.
+The shipped HTML, CSS, JavaScript and generated modules can also be served by a
+static host. Keep their relative directory layout. Subpath execution is tested
+at `/project/`. No hosted deployment was published as part of this recovery.
+The data repository is separate from the application repository.
 
-## Hosting your own copy of the app
-
-The hosted link is convenient but it is someone else's Pages site. To own the whole thing: use the
-[rebuild repository](https://github.com/Devansh-ops/worklog-bend) as a template, enable Pages on your copy
-(Settings → Pages → `main`, `/ (root)`), and use your own URL instead. No configuration — the app
-reads its own location at runtime. Your data repo is unaffected either way; the two are separate,
-and you can point any copy of the app at the same data repo.
+For a local model, configure its server to allow the exact app origin. If a
+browser blocks the request, inspect the endpoint error and use the local app
+with the server's matching origin configuration.
 
 ## Using it from more than one machine
 
@@ -149,8 +145,9 @@ per-browser by design.
 **"GitHub refused the write (403)"** — the token lacks *Contents: Read and write* on that repo, or
 it's fine-grained and that repo isn't in its selected list.
 
-**The wizard can't create the repo** — fine-grained tokens can't create repos. Either create it
-yourself on GitHub and retry, or use a classic token with the `repo` scope.
+**The wizard cannot create the repository:** verify repository-creation permission
+using the GitHub documentation linked above, or create it with the authenticated
+terminal setup and then grant the browser token access to that repository.
 
 **"404 reading data/manifest.json"** on a repo you know exists — usually a private repo with no
 token, or a token without access to it. A public repo needs no token; a private one always does.
