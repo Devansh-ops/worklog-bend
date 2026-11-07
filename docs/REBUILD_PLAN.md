@@ -1,6 +1,6 @@
 # Worklog Bend rebuild plan
 
-Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Phase 3 formal acceptance is still in progress. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
+Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Local acceptance is complete for the implemented application and important modeled invariants; final hosted confirmation is recorded in STATUS.md. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
 
 Read `AGENTS.md`, `docs/STATUS.md`, and `docs/SPEC.md` first. The original Worklog
 application is the feature reference, not an infallible behavioral oracle. The
@@ -114,7 +114,7 @@ downgrade unknown schemas or copy an identified reference defect for parity.
 
 ## Phase 3: implement and prove the event core
 
-Status: implementation integrated and runtime-tested. Universal merge uniqueness/order/algebra and remaining refinement acceptance are still pending; see LAW_REVIEW.md.
+Status: accepted modeled core gate. Real verdict covers canonical uniqueness/order/algebra, conflicts, accepted-command closure, reconciliation and privacy; runtime behavior is checked independently. LAW_REVIEW.md states exact proof limits.
 
 Implement event validation, commands, collision-aware canonical merge, replay,
 notes, deletion, status/completion metadata, summaries/reports, and checkpoint
@@ -131,8 +131,7 @@ on `@unsafe`, foreign effects, or an uninhabited valid-state assumption.
 
 ## Phase 4: storage, readable ledger, migration, and publish
 
-Status: adapters and exact plans implemented and tested; final acceptance depends on Phase 3. Adapter preparation can run in parallel once
-Phase 2 fixes its contract.
+Status: implemented and accepted locally with checked month planning, exact immutable plans, verified source caching, append-only pending recovery and independent adapter/browser gates.
 
 Implement schema guards and codecs, local staging/restore/discard, lazy history,
 snapshot trimming/recovery, month/year/Markdown rendering, manifest statistics,
@@ -155,7 +154,7 @@ recovery and explicit fallback when checkpoint validity is insufficient.
 
 ## Phase 5: privacy and all AI paths
 
-Status: implemented with synthetic provider-byte checks and actual browser consent; final acceptance depends on the complete domain gate.
+Status: implemented and accepted within the tested provider boundary: synthetic bytes for every HTTP preset, real browser consent and stale-session/draft protection. Live provider/GPU checks remain explicit limits.
 
 Implement the eligible-task projection, note policy, actual-destination locality,
 immutable request/disclosure object, endpoint-specific consent, model-response
@@ -176,8 +175,7 @@ real service smoke checks, if run, use synthetic content and record limitations.
 
 ## Phase 6: full browser feature parity
 
-Status: runnable browser integration and acceptance checks recorded in BROWSER_ACCEPTANCE.md; final acceptance follows the domain proof gate. UI work
-can proceed alongside Phases 4 and 5 against stable contracts.
+Status: implemented and accepted locally through six real Chromium gates, including native vault operations, concurrent pending recovery and complete workflows. See BROWSER_ACCEPTANCE.md and STATUS.md.
 
 Complete board, details, wiki, summaries, standup, brain dump, setup, settings,
 reminders, pane layouts, search, themes, loading/error recovery, and demo. Use
@@ -195,7 +193,7 @@ posts a report to a team channel or sends real credentials to providers.
 
 ## Phase 7: packaging, deployment, and final acceptance
 
-Status: reproducible static build, package and boundary checks implemented; fresh-clone/hosted CI and final proof acceptance are in progress.
+Status: all local gates passed. Clean GitHub checkout/build and hosted Ubuntu checks already passed earlier integrations; final-source hosted confirmation and remote equality are recorded in STATUS.md.
 
 Verify CLI flags, static path confinement and GET/HEAD behavior, browser launch,
 port conflicts, clean shutdown, setup/scaffold output, and distribution contents.
@@ -217,6 +215,23 @@ limits. Push only reviewed commits to the authorized `worklog-bend` destination
 using the user's authenticated local GitHub CLI and preserve private visibility
 by default. Do not publish a BendHub package as part of this rebuild.
 
-## Handoff checkpoint
+## Accepted implementation decisions
 
-Windows restoration and private GitHub creation/push are complete. Continue the remaining universal proof obligations and final acceptance, preserving the runnable integrated application. STATUS.md records actual checks; do not describe unfinished laws or hosted runs as passing.
+- Full verified-source replay replaces the unsafe timestamp-watermark snapshot
++  shortcut. Warm raw-body caching bounds network reads while preserving complete
++  deletion/late-event provenance. Cold loads must verify all sources.
++- Same-ID content conflicts are errors; peer Git changes require new explicit
++  approval rather than an automatic materially changed retry.
++- Copied reports record exact clipboard text, not delivery to a team channel.
++- Local pending operation journals prevent cross-tab stale-snapshot loss. They
++  retain content and grow until an explicit future safe compaction design.
++- Proof acceptance concerns the stated important pure-domain invariants. Host
++  effects and representation boundaries have executed independent tests; live
++  provider/GPU/OS integration limits remain visible in STATUS.md.
++
++## Handoff checkpoint
+
+Restoration and the runnable rebuild are implemented. All local proof, runtime
++and browser gates passed. Keep STATUS.md and LAW_REVIEW.md current when behavior
++changes, preserve private source visibility and upstream history, and rerun the
++appropriate gates before integrating future work.

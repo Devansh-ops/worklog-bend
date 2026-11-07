@@ -1,6 +1,6 @@
 # Bend domain core interface
 
-Initial implementation checked and executed on 2026-11-08 using pinned Bend 2.0.40. This document describes the implementation boundary, not completion of Phase 3 or a claim that every candidate law is proved. The independent root laws/proofs remain separate review work.
+Initial implementation checked and executed on 2026-11-08 using pinned Bend 2.0.40. This document describes the implementation boundary, the generated-value interface. Important pure-domain laws have separate kernel-checked statements and scope review in LAW_REVIEW.md; this is not a claim that every possible relation is proved.
 
 ## Build and runtime
 
@@ -46,7 +46,7 @@ All three completion paths (created-done, status change, status edit) use the ev
 
 New titles are nonblank and at most 200 Unicode scalar values; notes/reports are nonblank and at most 20,000; tags are at most 50 items, each nonblank and at most 64 scalars. Legacy history is not truncated or rejected merely for exceeding those new-command limits. Status/priority validity is represented by typed enums. The host separately validates timestamp/date syntax, IDs, full JSON compatibility, supported schemas, and source envelopes. These checks must run on every source and conflict reload before staging or publication.
 
-The first implementation deliberately provides authoritative full replay, not an unproved bounded snapshot shortcut. A trusted incremental coverage cache and lazy note history still require explicit schema/compatibility work and tests. The implementation does not yet establish the complete universal sorted-merge algebra, checkpoint refinement, or all report/rendering/reminder laws. All such gaps must remain visible in STATUS and the phase gate. Browser transport, storage, JSON, compiler output, and user-authored free text are outside the modeled proof guarantees.
+The first implementation deliberately provides authoritative full replay, not an unproved bounded snapshot shortcut. Verified raw-source caching supplies bounded unchanged/changed network reads while retaining complete canonical replay. Universal canonical merge algebra and important recovery/record/privacy laws are checked; LAW_REVIEW.md distinguishes conditional coverage, helper facts and witnesses. Incremental snapshot-tail replay is not implemented or claimed. Browser transport, storage, JSON, compiler output, and user-authored free text are outside the modeled proof guarantees.
 
 ## Deterministic reports and reminders
 
