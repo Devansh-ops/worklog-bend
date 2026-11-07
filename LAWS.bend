@@ -1,0 +1,276 @@
+import Base
+import ./bend/Types.bend as T
+import ./bend/Core.bend as Core
+
+# Supporting order facts for canonical event identity and sorting.
+# These are not substitutes for the full merge membership/algebra obligations.
+law word_order_reflexive:
+  for n: Nat
+  for w: Word(n)
+  {Word.cmp(n, w, w) == EQ{} : Cmp}
+
+law u32_order_reflexive:
+  for x: U32
+  {U32.cmp(x, x) == EQ{} : Cmp}
+
+law string_order_reflexive:
+  for s: String
+  {String.order(s, s) == EQ{} : Cmp}
+
+law string_equality_reflexive:
+  for s: String
+  {String.eq(s, s) == True{} : Bool}
+
+# Independent specification: completion is present exactly for Done.
+def CompletionMatches(status: T.Status, instant: String, result: Maybe<&2, String>) -> Type:
+  match status:
+    case T.SDone{}:
+      {result == Some{instant} : Maybe<&2, String>}
+    case _:
+      {result == None{} : Maybe<&2, String>}
+
+law completion_metadata:
+  for status: T.Status
+  for instant: String
+  CompletionMatches(status, instant, Core.completion(status, instant))
+
+def force_private(task: T.Task) -> T.Task:
+  match task:
+    case T.Task{id, title, status, priority, tags, private, deleted, created, updated, completed, notes}:
+      T.Task{id, title, status, priority, tags, True{}, deleted, created, updated, completed, notes}
+
+def task_completion(task: T.Task) -> Maybe<&2, String>:
+  match task:
+    case T.Task{id, title, status, priority, tags, private, deleted, created, updated, completed, notes}:
+      completed
+
+law private_is_ineligible:
+  for task: T.Task
+  {Core.eligible(force_private(task)) == False{} : Bool}
+
+law deleted_is_ineligible:
+  for task: T.Task
+  for instant: String
+  {Core.eligible(Core.delete_task(task, instant)) == False{} : Bool}
+
+law deletion_preserves_tombstone:
+  for task: T.Task
+  for instant: String
+  {Core.task_deleted(Core.delete_task(task, instant)) == True{} : Bool}
+
+law edit_cannot_resurrect:
+  for task: T.Task
+  for patch: T.Patch
+  for instant: String
+  {Core.task_deleted(Core.edit_task(task, patch, instant)) == Core.task_deleted(task) : Bool}
+
+law note_cannot_resurrect:
+  for task: T.Task
+  for note: T.Note
+  for instant: String
+  {Core.task_deleted(Core.note_task(task, note, instant)) == Core.task_deleted(task) : Bool}
+
+law notes_off_omits_all_direct_notes:
+  for task: T.Task
+  {Core.context_notes(Core.project(task, False{})) == Nil{} : List<&2, T.Note>}
+
+law edit_without_status_keeps_completion:
+  for task: T.Task
+  for title: Maybe<&2, String>
+  for priority: Maybe<&2, T.Priority>
+  for tags: Maybe<&2, List<&2, String>>
+  for private: Maybe<&2, Bool>
+  for instant: String
+  {task_completion(Core.edit_task(task, T.Patch{title, None{}, priority, tags, private}, instant)) == task_completion(task) : Maybe<&2, String>}
+
+law edit_to_done_records_completion:
+  for task: T.Task
+  for instant: String
+  {task_completion(Core.edit_task(task, T.Patch{None{}, Some{T.SDone{}}, None{}, None{}, None{}}, instant)) == Some{instant} : Maybe<&2, String>}
+
+law edit_to_todo_clears_completion:
+  for task: T.Task
+  for instant: String
+  {task_completion(Core.edit_task(task, T.Patch{None{}, Some{T.STodo{}}, None{}, None{}, None{}}, instant)) == None{} : Maybe<&2, String>}
+
+law private_context_head_is_omitted:
+  for task: T.Task
+  for rest: List<&2, T.Task>
+  for sendNotes: Bool
+  {Core.context_tasks(force_private(task) <> rest, sendNotes) == Core.context_tasks(rest, sendNotes) : List<&2, T.ContextTask>}
+
+law deleted_context_head_is_omitted:
+  for task: T.Task
+  for instant: String
+  for rest: List<&2, T.Task>
+  for sendNotes: Bool
+  {Core.context_tasks(Core.delete_task(task, instant) <> rest, sendNotes) == Core.context_tasks(rest, sendNotes) : List<&2, T.ContextTask>}
+
+def context_has_no_notes(tasks: List<&2, T.ContextTask>) -> Bool:
+  match tasks:
+    case Nil{}:
+      True{}
+    case h <> t:
+      Bool.and(List.is_empty(&2, T.Note, Core.context_notes(h)), context_has_no_notes(t))
+
+law notes_off_context_has_no_notes:
+  for tasks: List<&2, T.Task>
+  {context_has_no_notes(Core.context_tasks(tasks, False{})) == True{} : Bool}
+
+law incomplete_state_withholds_context:
+  for tasks: List<&2, T.Task>
+  for summaries: List<&2, T.Recorded>
+  for reports: List<&2, T.Recorded>
+  for diagnostics: List<&2, T.Diagnostic>
+  for sendNotes: Bool
+  {Core.context(T.State{tasks, summaries, reports, diagnostics, False{}}, sendNotes) == Nil{} : List<&2, T.ContextTask>}
+
+law failed_publication_preserves_pending:
+  for pending: List<&2, T.DomainEvent>
+  for committed: List<&2, T.DomainEvent>
+  {Core.acknowledge(pending, committed, False{}) == pending : List<&2, T.DomainEvent>}
+
+law empty_approval_preserves_pending:
+  for pending: List<&2, T.DomainEvent>
+  {Core.acknowledge(pending, Nil{}, True{}) == pending : List<&2, T.DomainEvent>}
+
+# An explicit noncircular precondition: this event does not exactly match any
+# event in the committed plan. The empty committed list is a concrete witness.
+law unapproved_event_remains_pending:
+  for event: T.DomainEvent
+  for rest: List<&2, T.DomainEvent>
+  for committed: List<&2, T.DomainEvent>
+  for absent: {Core.exact_contains(committed, event) == False{} : Bool}
+  {Core.acknowledge(event <> rest, committed, True{}) == event <> Core.acknowledge(rest, committed, True{}) : List<&2, T.DomainEvent>}
+
+# Numeric facts, rather than a hypothesis about schema_allowed's own result.
+law unrecognized_schema_is_refused:
+  for version: U32
+  for not_one: {U32.is_eq(version, 1) == False{} : Bool}
+  for not_two: {U32.is_eq(version, 2) == False{} : Bool}
+  {Core.schema_allowed(version) == False{} : Bool}
+
+# Nonvacuous witnesses for the policy and schema premises above.
+law eligible_task_exists:
+  exs task: T.Task
+  {Core.eligible(task) == True{} : Bool}
+
+law unsupported_schema_exists:
+  exs version: U32
+  {U32.is_eq(version, 1) == False{} : Bool} & {U32.is_eq(version, 2) == False{} : Bool}
+
+law true_and:
+  for -a: Bool
+  for -b: Bool
+  for pa: {a == True{} : Bool}
+  for pb: {b == True{} : Bool}
+  {Bool.and(a, b) == True{} : Bool}
+
+law bool_equality_reflexive:
+  for b: Bool
+  {Core.bool_eq(b, b) == True{} : Bool}
+
+law status_equality_reflexive:
+  for status: T.Status
+  {Core.status_eq(status, status) == True{} : Bool}
+
+law priority_equality_reflexive:
+  for priority: T.Priority
+  {Core.priority_eq(priority, priority) == True{} : Bool}
+
+law strings_equality_reflexive:
+  for strings: List<&2, String>
+  {Core.strings_eq(strings, strings) == True{} : Bool}
+
+law optional_string_equality_reflexive:
+  for value: Maybe<&2, String>
+  {Core.optional_string_eq(value, value) == True{} : Bool}
+
+law optional_status_equality_reflexive:
+  for value: Maybe<&2, T.Status>
+  {Core.optional_status_eq(value, value) == True{} : Bool}
+
+law optional_priority_equality_reflexive:
+  for value: Maybe<&2, T.Priority>
+  {Core.optional_priority_eq(value, value) == True{} : Bool}
+
+law optional_strings_equality_reflexive:
+  for value: Maybe<&2, List<&2, String>>
+  {Core.optional_strings_eq(value, value) == True{} : Bool}
+
+law optional_bool_equality_reflexive:
+  for value: Maybe<&2, Bool>
+  {Core.optional_bool_eq(value, value) == True{} : Bool}
+
+law patch_equality_reflexive:
+  for patch: T.Patch
+  {Core.patch_eq(patch, patch) == True{} : Bool}
+
+law payload_equality_reflexive:
+  for payload: T.Payload
+  {Core.payload_eq(payload, payload) == True{} : Bool}
+
+law event_equality_reflexive:
+  for event: T.DomainEvent
+  {Core.event_eq(event, event) == True{} : Bool}
+
+law identical_pair_sort:
+  for event: T.DomainEvent
+  for order: Bool
+  {List.sort.pair(T.DomainEvent, event, event, order) == [event, event] : List<&2, T.DomainEvent>}
+
+law scan_identical_pair:
+  for +event: T.DomainEvent
+  {Core.scan_ids([event, event], Nil{}, None{}) == T.Merged{[event]} : T.MergeResult}
+
+# Universal duplicate-delivery law for every complete event value, including
+# all payload variants and retained canonical data. General-list algebra is a
+# separate obligation and is not implied by this two-delivery theorem.
+law duplicate_delivery_single_event:
+  for +event: T.DomainEvent
+  {Core.merge([event], [event]) == T.Merged{[event]} : T.MergeResult}
+
+law create_done_has_completion:
+  for taskId: String
+  for title: String
+  for priority: T.Priority
+  for tags: List<&2, String>
+  for private: Bool
+  for eventId: String
+  for instant: String
+  for day: String
+  for canonical: String
+  {Core.apply_event(Core.empty_state(), T.Ev{eventId, instant, day, T.Created{taskId, title, T.SDone{}, priority, tags, private}, canonical}) == T.State{[T.Task{taskId, title, T.SDone{}, priority, tags, private, False{}, instant, instant, Some{instant}, Nil{}}], Nil{}, Nil{}, Nil{}, True{}} : T.State}
+
+law status_done_has_completion:
+  for task: T.Task
+  for taskId: String
+  for eventId: String
+  for instant: String
+  {task_completion(Core.apply_payload(task, T.StatusChanged{taskId, T.SDone{}}, eventId, instant)) == Some{instant} : Maybe<&2, String>}
+
+law status_todo_clears_completion:
+  for task: T.Task
+  for taskId: String
+  for eventId: String
+  for instant: String
+  {task_completion(Core.apply_payload(task, T.StatusChanged{taskId, T.STodo{}}, eventId, instant)) == None{} : Maybe<&2, String>}
+
+law updates_after_deletion_are_diagnostic:
+  for state: T.State
+  for task: T.Task
+  for payload: T.Payload
+  for eventId: String
+  for instant: String
+  for deletionInstant: String
+  {Core.update_found(state, payload, eventId, instant, Core.task_id(task), Some{Core.delete_task(task, deletionInstant)}) == Core.diagnostic(state, T.AfterDelete{eventId, Core.task_id(task)}) : T.State}
+
+law unknown_event_withholds_context:
+  for state: T.State
+  for eventId: String
+  for instant: String
+  for day: String
+  for kind: String
+  for canonical: String
+  for sendNotes: Bool
+  {Core.context(Core.apply_event(state, T.Ev{eventId, instant, day, T.Opaque{kind}, canonical}), sendNotes) == Nil{} : List<&2, T.ContextTask>}
