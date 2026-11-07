@@ -4,7 +4,8 @@ import { GitHubRepo, ConflictError } from '../js/github.js';
 import { planMonths } from '../js/domain.js';
 import { createHash } from 'node:crypto';
 const storage = new Map();
-globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
+globalThis.localStorage = { get length() { return storage.size; }, key: index => [...storage.keys()][index] ?? null,
+  getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
 const event = (id, type, data = {}, ts = '2026-11-07T09:00:00.000Z') => ({ id, type, ts, ...data });
 const create = event('create', 'task.create', { taskId: 'T-aaa111', title: 'Synthetic' });
 const note = event('note', 'task.note', { taskId: 'T-aaa111', text: 'NEW_DURING_PUBLISH' }, '2026-11-07T10:00:00.000Z');
@@ -275,5 +276,131 @@ await check('planner host boundary refuses malformed months, schemas and unsuppo
   assert.throws(() => planMonths([], [], { ...options, schemas: [2, 999, 1] }), /unsupported source schema/);
   assert.throws(() => planMonths([], [event('opaque', 'unknown.future')], options), /unsupported source semantics/);
   assert.throws(() => planMonths([{ month: '2026-11', currentExists: false, legacyExists: false, events: [create] }], [], options), /coverage/);
+});
+const independentCreate = id => ({ ...create, id, taskId: `T-${id}`, title: `Synthetic ${id}` });
+const pendingIds = store => store.pending.map(value => value.id).sort();
+const journalEntries = () => [...storage].filter(([key]) => key.startsWith('worklog.pending-journal.v1.'));
+await check('two tabs retain both branch drafts and reload their exact journal union', async () => {
+  const repo = withHistory(), first = new Store(repo), second = new Store(repo);
+  await first.load(); await second.load();
+  first.stage(independentCreate('tab-A')); second.stage(independentCreate('tab-B'));
+  const restored = new Store(repo); await restored.load();
+  assert.deepEqual(pendingIds(restored), ['tab-A', 'tab-B']);
+  assert.equal(journalEntries().length, 2);
+  assert.match(second.storageError, /another tab/);
+});
+await check('a stale racing snapshot cannot erase already appended peer operations', async () => {
+  const repo = withHistory(), first = new Store(repo), second = new Store(repo);
+  await first.load(); await second.load();
+  const original = globalThis.localStorage;
+  let race = true;
+  globalThis.localStorage = Object.assign(Object.create(original), { setItem(key, value) {
+    if (key === first._pendingKey && race) { race = false; second.stage(independentCreate('racing-B')); }
+    original.setItem(key, value);
+  } });
+  try { first.stage(independentCreate('racing-A')); } finally { globalThis.localStorage = original; }
+  assert.deepEqual(JSON.parse(storage.get(first._pendingKey)).map(event => event.id), ['racing-A']);
+  const restored = new Store(repo); await restored.load();
+  assert.deepEqual(pendingIds(restored), ['racing-A', 'racing-B']);
+});
+await check('discard removes only observed events and later edits do not resurrect them', async () => {
+  const repo = withHistory(), first = new Store(repo), second = new Store(repo);
+  await first.load(); await second.load();
+  first.stage(independentCreate('discard-A')); second.stage(independentCreate('keep-B'));
+  first.discardPending();
+  assert.deepEqual(pendingIds(first), ['keep-B']);
+  const restored = new Store(repo); await restored.load(); restored.stage(independentCreate('new-C'));
+  assert.deepEqual(pendingIds(restored), ['keep-B', 'new-C']);
+  const again = new Store(repo); await again.load(); assert.deepEqual(pendingIds(again), ['keep-B', 'new-C']);
+});
+await check('publication acknowledgement preserves unseen peer changes and cannot resurrect committed events', async () => {
+  const repo = withHistory(), first = new Store(repo), second = new Store(repo);
+  await first.load(); await second.load();
+  first.stage(independentCreate('publish-A')); const plan = await first.preparePublish();
+  repo.duringCommit = () => second.stage(independentCreate('peer-B'));
+  await first.push(plan);
+  assert.deepEqual(pendingIds(first), ['peer-B']);
+  const restored = new Store(repo); await restored.load(); restored.stage(independentCreate('new-C'));
+  assert.deepEqual(pendingIds(restored), ['new-C', 'peer-B']);
+});
+await check('pending journals are scoped to the exact destination and branch', async () => {
+  const firstRepo = withHistory(), first = new Store(firstRepo); await first.load(); first.stage(independentCreate('main-only'));
+  for (const [repoName, branch] of [['data', 'other'], ['different', 'main'], ['data', 'main.journal.fake']]) {
+    const repo = withHistory(); repo.repo = repoName; repo.branch = branch;
+    const isolated = new Store(repo); await isolated.load(); assert.deepEqual(isolated.pending, []);
+  }
+  const restored = new Store(firstRepo); await restored.load(); assert.deepEqual(pendingIds(restored), ['main-only']);
+});
+await check('malformed recovery records stay untouched and prevent accepting uncheckable commands', async () => {
+  const repo = withHistory(), first = new Store(repo); await first.load(); first.stage(independentCreate('valid-A'));
+  const malformedKey = first._pendingJournal + 'malformed', malformed = '{"version":1,"added":';
+  storage.set(malformedKey, malformed);
+  assert.throws(() => first.stage(independentCreate('retained-B')), /recovery data needs attention/);
+  assert.deepEqual(pendingIds(first), ['valid-A']);
+  assert.equal(first.recoveryRequired, true); assert.equal(first.authoritative, false);
+  assert.equal(storage.get(malformedKey), malformed);
+  assert.equal(journalEntries().length, 2);
+  const restored = new Store(repo); await restored.load(); assert.equal(restored.recoveryRequired, true);
+  assert.equal(storage.get(malformedKey), malformed); assert.equal(repo.writes.length, 0);
+});
+await check('an externally malformed pending snapshot cannot be overwritten by an open tab', async () => {
+  const repo = withHistory(); storage.set('worklog.pending.synthetic/data#main', JSON.stringify([independentCreate('array-only-A')]));
+  const first = new Store(repo); await first.load();
+  const malformed = '{"invalid":"not an array"}'; storage.set(first._pendingKey, malformed);
+  assert.throws(() => first.stage(independentCreate('preserved-after-malformed')), /recovery data needs attention/);
+  assert.equal(storage.get(first._pendingKey), malformed);
+  assert.ok(journalEntries().some(([, raw]) => JSON.parse(raw).added.some(event => event.id === 'preserved-after-malformed')));
+  assert.ok(journalEntries().some(([, raw]) => JSON.parse(raw).added.some(event => event.id === 'array-only-A')));
+  assert.equal(first.pending.length, 2); assert.equal(first.recoveryRequired, true);
+});
+await check('quota failures before and after journal append preserve available recovery evidence', async () => {
+  const original = globalThis.localStorage;
+  for (const failAt of [1, 2]) {
+    storage.clear();
+    const repo = withHistory(), first = new Store(repo); await first.load();
+    let writes = 0;
+    globalThis.localStorage = Object.assign(Object.create(original), { setItem(key, value) {
+      if (++writes === failAt) throw new Error('synthetic quota'); original.setItem(key, value);
+    } });
+    try { assert.throws(() => first.stage(independentCreate('quota-A')), /remain/); }
+    finally { globalThis.localStorage = original; }
+    assert.deepEqual(pendingIds(first), ['quota-A']);
+    assert.equal(journalEntries().length, failAt === 1 ? 0 : 1);
+    if (failAt === 2) { const recovered = new Store(repo); await recovered.load(); assert.deepEqual(pendingIds(recovered), ['quota-A']); }
+  }
+});
+await check('conflicting full event identities remain durable and force read-only recovery', async () => {
+  const repo = withHistory(), first = new Store(repo), second = new Store(repo); await first.load(); await second.load();
+  first.stage(independentCreate('same-id'));
+  assert.throws(() => second.stage({ ...independentCreate('same-id'), title: 'Conflicting second tab content' }), /recovery data needs attention/);
+  assert.equal(journalEntries().length, 2);
+  const restored = new Store(repo); await restored.load(); assert.equal(restored.recoveryRequired, true);
+  assert.equal(repo.writes.length, 0);
+});
+await check('discarded and acknowledged event IDs cannot be accepted then silently removed on reload', async () => {
+  const repo = withHistory(), first = new Store(repo); await first.load();
+  const discarded = independentCreate('retired-A'); first.stage(discarded); first.discardPending();
+  assert.throws(() => first.stage(discarded), /already discarded or acknowledged/);
+  assert.deepEqual(first.pending, []);
+  const peer = new Store(repo); await peer.load();
+  assert.throws(() => peer.stage({ ...discarded, title: 'Reused ID with differing content' }), /already discarded or acknowledged/);
+  storage.set(first._legacyPendingKey, JSON.stringify([discarded]));
+  storage.delete(first._pendingKey);
+  const legacy = new Store(repo); await legacy.load();
+  assert.throws(() => legacy.recoverLegacyPending(), /already discarded or acknowledged/);
+  assert.ok(storage.has(first._legacyPendingKey));
+  first.stage(independentCreate('published-A')); await first.push(await first.preparePublish());
+  assert.throws(() => peer.stage(independentCreate('published-A')), /already discarded or acknowledged/);
+  const restored = new Store(repo); await restored.load(); assert.deepEqual(restored.pending, []);
+});
+await check('a peer retirement racing stage is explicitly rejected rather than silently disappearing', async () => {
+  const repo = withHistory(), first = new Store(repo), peer = new Store(repo); await first.load(); await peer.load();
+  const candidate = independentCreate('retirement-race');
+  const append = first._appendPendingOperation.bind(first);
+  first._appendPendingOperation = (added, removed) => { peer.stage(candidate); peer.discardPending(); return append(added, removed); };
+  assert.throws(() => first.stage(candidate), error => /not accepted/.test(error.message) && error.retainedInMemory === false);
+  assert.equal(first.recoveryRequired, true); assert.equal(first.authoritative, false);
+  const restored = new Store(repo); await restored.load(); assert.deepEqual(restored.pending, []);
+  assert.equal(journalEntries().length, 3);
 });
 console.log(`${checks} store/effect integration checks passed; synthetic HTTP and loopback only`);

@@ -51,6 +51,8 @@ globalThis.TextDecoder = class {
 
 const mem = new Map();
 globalThis.localStorage = {
+  get length() { return mem.size; },
+  key: (index) => [...mem.keys()][index] ?? null,
   getItem: (k) => (mem.has(k) ? mem.get(k) : null),
   setItem: (k, v) => mem.set(k, String(v)),
   removeItem: (k) => mem.delete(k),

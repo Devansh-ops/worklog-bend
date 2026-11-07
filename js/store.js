@@ -585,6 +585,9 @@ export class Store {
     this.manifestSchema = SCHEMA;
     this.loaded = false;
     this._pendingKey = `worklog.pending.${repo.owner}/${repo.repo}#${encodeURIComponent(repo.branch || 'main')}`;
+    this._pendingJournal = `worklog.pending-journal.v1.${encodeURIComponent(repo.owner + '/' + repo.repo)}#${encodeURIComponent(repo.branch || 'main')}#`;
+    this._persistedPending = [];
+    this._pendingRaw = null;
     this._legacyPendingKey = `worklog.pending.${repo.owner}/${repo.repo}`;
     this.envelopes = new Map();
     this.schemas = new Map();
@@ -598,26 +601,120 @@ export class Store {
   _restorePending() {
     if (this.repo.demo) return;
     try {
-      const saved = localStorage.getItem(this._pendingKey);
+      const { pending, raw: saved } = this._readPendingStorage();
       const legacy = localStorage.getItem(this._legacyPendingKey);
       if (!saved && legacy) this.pendingRecovery = { key: this._legacyPendingKey, text: legacy };
-      const parsed = parseJSON(saved || '[]');
-      if (!Array.isArray(parsed)) throw new Error('Stored pending changes must be an array.');
-      this.pending = parsed.map(event => { encodeEvent(event); return immutableJSON(event); });
+      this.pending = pending;
+      this._persistedPending = pending;
+      this._pendingRaw = saved;
     } catch (error) {
       this.storageError = error.message;
       this.recoveryRequired = true;
     }
   }
 
+  _pendingArray(value) {
+    if (!Array.isArray(value)) throw new Error('Stored pending changes must be an array.');
+    return value.map(event => { encodeEvent(event); return immutableJSON(event); });
+  }
+
+  _withoutEvents(events, removed) {
+    return listFromBend(core.acknowledge(listToBend(events, event => encodeEvent(event)), listToBend(removed, event => encodeEvent(event)), true), event => parseJSON(event.canonical));
+  }
+
+  _readPendingOperations() {
+    if (!Number.isInteger(localStorage.length) || typeof localStorage.key !== 'function') throw new Error('Browser storage cannot enumerate recovery journals.');
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (typeof key === 'string' && key.startsWith(this._pendingJournal)) keys.push(key);
+    }
+    const additions = [], removals = [];
+    for (const key of keys.sort()) {
+      const text = localStorage.getItem(key);
+      if (text === null) continue;
+      const operation = parseJSON(text);
+      if (!operation || operation.version !== 1 || operation.scope !== this._pendingKey) throw new Error('Invalid pending recovery journal.');
+      additions.push(this._pendingArray(operation.added));
+      removals.push(...this._pendingArray(operation.removed));
+    }
+    // Complete event equality is supplied by Bend, including unknown envelopes.
+    // A removal acknowledges only values observed by its originating operation.
+    return { additions, removals };
+  }
+
+  _readPendingStorage() {
+    const raw = localStorage.getItem(this._pendingKey);
+    const base = this._pendingArray(parseJSON(raw === null ? '[]' : raw));
+    const { additions, removals } = this._readPendingOperations();
+    return { raw, removed: removals, pending: this._withoutEvents(mergeEvents(base, ...additions), removals) };
+  }
+
+  _assertPendingIdsAvailable(events) {
+    if (this.repo.demo) return;
+    let removed;
+    try { removed = this._readPendingOperations().removals; }
+    catch (error) {
+      this.storageError = error.message; this.recoveryRequired = true; this.authoritative = false;
+      throw new Error('Pending recovery data needs attention. Existing drafts and stored originals were preserved; recover them before editing.');
+    }
+    const retired = listToBend(removed, event => encodeEvent(event));
+    for (const event of events) {
+      const encoded = encodeEvent(event);
+      if (core.ids_contains(retired, encoded.id)) throw new Error('This event ID was already discarded or acknowledged. Create a new event instead.');
+    }
+  }
+
+  _appendPendingOperation(added, removed) {
+    if (!added.length && !removed.length) return false;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const nonce = globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID()
+        : [...globalThis.crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, '0')).join('');
+      const key = this._pendingJournal + nonce;
+      if (localStorage.getItem(key) !== null) continue;
+      localStorage.setItem(key, canonicalJSON({ version: 1, scope: this._pendingKey, added, removed }));
+      return true;
+    }
+    throw new Error('Could not allocate a unique pending recovery journal.');
+  }
+
   _savePending() {
     if (this.repo.demo) return;
     if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before overwriting it.');
-    try { localStorage.setItem(this._pendingKey, canonicalJSON(this.pending)); this.storageError = null; }
+    let journaled = false;
+    try {
+      const peerChanged = localStorage.getItem(this._pendingKey) !== this._pendingRaw;
+      const added = this._withoutEvents(this.pending, this._persistedPending);
+      const removed = this._withoutEvents(this._persistedPending, this.pending);
+      // Unique append comes first. A stale concurrent snapshot write can no
+      // longer erase either operation, even without cross-process compare/swap.
+      // Include the whole observed draft, so pre-journal array-only edits also
+      // gain recovery evidence. Equivalent deliveries deduplicate in Bend.
+      if (added.length || removed.length) journaled = this._appendPendingOperation(this.pending, removed);
+      let restored;
+      try { restored = this._readPendingStorage(); }
+      catch (error) { this.recoveryRequired = true; this.authoritative = false; throw error; }
+      const retired = listToBend(restored.removed, value => encodeEvent(value));
+      if (added.some(event => core.ids_contains(retired, event.id))) {
+        this.recoveryRequired = true; this.authoritative = false;
+        const error = new Error('A peer discarded or acknowledged this event ID while it was being staged. It was not accepted; its draft operation was retained for recovery.');
+        error.pendingIdRetired = true;
+        throw error;
+      }
+      this.pending = restored.pending;
+      this._persistedPending = restored.pending;
+      const raw = canonicalJSON(restored.pending);
+      localStorage.setItem(this._pendingKey, raw);
+      this._pendingRaw = raw;
+      this.storageError = peerChanged ? 'Changes from another tab were reconciled with this tab. Review the pending list.' : null;
+    }
     catch (error) {
       this.storageError = error.message;
-      const failure = new Error('Local storage failed. Changes remain in memory; keep this tab open.');
-      failure.retainedInMemory = true;
+      const failure = new Error(error.pendingIdRetired ? error.message : this.recoveryRequired
+        ? 'Pending recovery data needs attention. Stored originals were preserved; keep this tab open and recover the saved data before editing.'
+        : journaled ? 'Local storage snapshot failed. Changes remain in the recovery journal and in memory; keep this tab open.'
+          : 'Local storage failed. Changes remain in memory; keep this tab open.');
+      failure.retainedInMemory = !error.pendingIdRetired;
       throw failure;
     }
   }
@@ -627,6 +724,7 @@ export class Store {
     const recovered = parseJSON(this.pendingRecovery.text);
     if (!Array.isArray(recovered)) throw new Error('Legacy pending changes must be an array.');
     recovered.forEach(event => encodeEvent(event));
+    this._assertPendingIdsAvailable(recovered);
     this.pending = mergeEvents(this.pending, recovered).map(immutableJSON);
     this._savePending();
     // Keep the original recovery source. Other branches must never inherit it automatically.
@@ -637,6 +735,7 @@ export class Store {
   stage(...events) {
     if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before editing.');
     if (!this.authoritative || !this.state.complete) throw new Error('Load complete supported history before editing.');
+    this._assertPendingIdsAvailable(events.flat());
     let accepted = [...this.pending];
     for (const event of events.flat()) accepted.push(validateCommand(mergeEvents(this.remoteEvents, accepted), event));
     this.pending = accepted;
