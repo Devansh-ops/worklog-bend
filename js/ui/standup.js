@@ -18,7 +18,7 @@ import {
   standupEvent, GROUPINGS, DEFAULT_PREAMBLE,
 } from '../standup.js';
 import { writeStandup, prepareStandupRequest, AIError } from '../ai.js';
-import { appRevision, requireAuthoritative } from '../request.js';
+import { appRevision, requireAuthoritative, assertRequestCurrent } from '../request.js';
 import { endpointProblem } from '../providers.js';
 import { el, clear, notice, spinner, toast, copyText, shortTime, plural } from './dom.js';
 import { confirmCloudSend, requestDetails } from './consent.js';
@@ -193,6 +193,11 @@ export class StandupView {
           el('span', { class: 'spacer' }),
           posted ? el('span', { class: 'hint', text: `Recorded ${shortTime(posted.ts)}` }) : null)));
 
+    if (posted) this.root.append(el('details', { class: 'card', 'data-last-copied': this.kind },
+      el('summary', { text: 'Last copied today' }),
+      el('p', { class: 'hint', text: 'The exact clipboard text recorded in your log. Copying does not confirm delivery.' }),
+      el('pre', { class: 'commit-preview', text: posted.text })));
+
     const earlier = this.earlier(today);
     if (earlier.length) this.root.append(this.earlierCard(earlier));
 
@@ -309,7 +314,11 @@ export class StandupView {
     try {
       requireAuthoritative(this.app);
       request = await prepareStandupRequest({ endpoint, events: this.app.state.events, kind: this.kind, date: todayISO(),
-        includePlan: this.includePlan, includeNotes, draft: mine, readCurrent: () => appRevision(this.app) });
+        includePlan: this.includePlan, includeNotes, draft: mine, readCurrent: () => ({
+          app: appRevision(this.app), report: { kind: this.kind, date: todayISO(), includePlan: this.includePlan,
+            draft: this.draft ?? '', touched: this.touched, group: this.group, markdown: this.markdown,
+            preamble: this.preamble ?? null, note: this.note ?? '' },
+        }) });
       this.request = request;
       this.app.refresh();
       if (!await confirmCloudSend({ request })) return;
@@ -327,6 +336,7 @@ export class StandupView {
           this.progressEl.textContent = `${text}${progress ? ` (${Math.round(progress * 100)}%)` : ''}`;
         },
       });
+      assertRequestCurrent(request);
       this.written = groups;
       this.draft = this.text();
       this.touched = false;
@@ -348,15 +358,19 @@ export class StandupView {
   async copy() {
     const text = this.draft?.trim();
     if (!text) { toast('Nothing to copy.', 'error'); return; }
+    const copied = { date: todayISO(), kind: this.kind, text, style: this.group };
 
     if (!await copyText(text)) {
       toast('This browser would not let the page write to the clipboard — select the text and copy it by hand.', 'error');
       return;
     }
 
-    // Recorded as the text you actually copied, edits and all: the point of the record
-    // is what your team was told, not what the generator first proposed.
-    this.app.stage(standupEvent({ date: todayISO(), kind: this.kind, text, style: this.group }));
+    // Capture the selected report before the asynchronous clipboard effect.
+    // Its acknowledgement establishes copying, not delivery to a team channel.
+    if (this.app.stage(standupEvent(copied)) === false) {
+      toast('Copied, but the log could not record it. Keep the copied text and resolve the staging error.', 'error');
+      return;
+    }
     // Staging just moved the log, which must not auto-rebuild the box out from under
     // the text that was copied.
     this.builtAt = this.app.state.lastEventTs;
@@ -374,7 +388,7 @@ export class StandupView {
 
   earlierCard(earlier) {
     return el('div', { class: 'card' },
-      el('h2', { text: 'Reports you sent' }),
+      el('h2', { text: 'Reports you copied' }),
       el('p', { class: 'sub', text: 'Kept in your repo beside the work they describe.' }),
       el('div', {}, earlier.map(([date, kinds]) => {
         const r = kinds.evening || kinds.morning;

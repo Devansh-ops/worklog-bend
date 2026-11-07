@@ -7,10 +7,9 @@
  */
 import { STATUSES, PRIORITIES, statusLabel, makeEvent, newTaskId } from '../store.js';
 import { el, clear, dialog, confirm, age, shortTime, plural } from './dom.js';
+import { ownerProjection } from '../domain.js';
 
 /** Cards sort by priority then recency, so what matters is at the top of a column. */
-const RANK = { urgent: 0, high: 1, normal: 2, low: 3 };
-const byImportance = (a, b) => (RANK[a.priority] ?? 2) - (RANK[b.priority] ?? 2) || b.updated.localeCompare(a.updated);
 
 export class BoardView {
   /**
@@ -24,10 +23,11 @@ export class BoardView {
   }
 
   render() {
-    const tasks = this.app.tasks.filter((t) => this.matches(t));
+    const state = this.app.state;
+    const projection = ownerProjection(state.events, this.app.search || '', false, state.compiled);
     clear(this.root);
 
-    this.root.append(el('div', { class: 'board' }, STATUSES.map((s) => this.column(s, tasks))));
+    this.root.append(el('div', { class: 'board' }, STATUSES.map((s) => this.column(s, projection.columns[s.id]))));
 
     if (!this.app.tasks.length) {
       this.root.append(el('div', { class: 'card', style: 'margin-top:14px' },
@@ -37,7 +37,7 @@ export class BoardView {
     }
 
     if (this.flash) {
-      const card = this.root.querySelector(`[data-task="${this.flash}"]`);
+      const card = Array.from(this.root.querySelectorAll('[data-task]')).find(node => node.dataset.task === this.flash);
       if (card) {
         card.classList.add('flash');
         card.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -47,15 +47,8 @@ export class BoardView {
     return this.root;
   }
 
-  matches(t) {
-    const q = (this.app.search || '').trim().toLowerCase();
-    if (!q) return true;
-    return [t.id, t.title, ...(t.tags || []), ...t.notes.map((n) => n.text)]
-      .join(' ').toLowerCase().includes(q);
-  }
-
   column(status, tasks) {
-    const mine = tasks.filter((t) => t.status === status.id).sort(byImportance);
+    const mine = tasks;
 
     const col = el('div', {
       class: 'column',
@@ -113,12 +106,12 @@ export class BoardView {
     const t = this.app.tasks.find((x) => x.id === taskId);
     if (!t) return;
 
-    const title = el('input', { type: 'text', value: t.title, maxlength: '200' });
-    const status = el('select', {}, STATUSES.map((s) => el('option', { value: s.id, selected: s.id === t.status, text: s.label })));
-    const priority = el('select', {}, PRIORITIES.map((p) => el('option', { value: p, selected: p === t.priority, text: p })));
-    const tags = el('input', { type: 'text', value: (t.tags || []).join(', '), placeholder: 'comma, separated' });
+    const title = el('input', { 'aria-label': 'Title', type: 'text', value: t.title, maxlength: '200' });
+    const status = el('select', { 'aria-label': 'Status' }, STATUSES.map((s) => el('option', { value: s.id, selected: s.id === t.status, text: s.label })));
+    const priority = el('select', { 'aria-label': 'Priority' }, PRIORITIES.map((p) => el('option', { value: p, selected: p === t.priority, text: p })));
+    const tags = el('input', { 'aria-label': 'Tags', type: 'text', value: (t.tags || []).join(', '), placeholder: 'comma, separated' });
     const priv = el('input', { type: 'checkbox', checked: !!t.private });
-    const note = el('textarea', { placeholder: 'What happened? This becomes a dated note in your changelog.' });
+    const note = el('textarea', { 'aria-label': 'Add a note', placeholder: 'What happened? This becomes a dated note in your changelog.' });
 
     const body = el('div', {},
       el('div', { class: 'field' }, el('label', { text: 'Title' }), title),
@@ -152,7 +145,7 @@ export class BoardView {
               danger: true,
             });
             if (!yes) return undefined;          // keep the dialog open
-            this.app.stage(makeEvent('task.delete', { taskId }));
+            if (this.app.stage(makeEvent('task.delete', { taskId })) === false) return undefined;
             return 'deleted';
           },
         },
@@ -175,13 +168,13 @@ export class BoardView {
             if (status.value !== t.status) events.push(makeEvent('task.status', { taskId, from: t.status, to: status.value }));
             if (note.value.trim()) events.push(makeEvent('task.note', { taskId, text: note.value.trim() }));
 
-            if (events.length) this.app.stage(...events);
+            if (events.length && this.app.stage(...events) === false) return undefined;
             return 'saved';
           },
         },
       ],
     });
-    setTimeout(() => (t.notes.length ? note : title).focus(), 50);
+    (t.notes.length ? note : title).focus();
     return close;
   }
 }
@@ -190,22 +183,22 @@ export class BoardView {
 
 /** Quick-add. Kept separate from the detail dialog: creating wants one field, not eight. */
 export function newTaskDialog(app) {
-  const title = el('input', { type: 'text', placeholder: 'What needs doing?', maxlength: '200' });
-  const status = el('select', {}, STATUSES.map((s) => el('option', { value: s.id, selected: s.id === 'todo', text: s.label })));
-  const priority = el('select', {}, PRIORITIES.map((p) => el('option', { value: p, selected: p === 'normal', text: p })));
-  const tags = el('input', { type: 'text', placeholder: 'comma, separated' });
+  const title = el('input', { 'aria-label': 'Title', type: 'text', placeholder: 'What needs doing?', maxlength: '200' });
+  const status = el('select', { 'aria-label': 'Status' }, STATUSES.map((s) => el('option', { value: s.id, selected: s.id === 'todo', text: s.label })));
+  const priority = el('select', { 'aria-label': 'Priority' }, PRIORITIES.map((p) => el('option', { value: p, selected: p === 'normal', text: p })));
+  const tags = el('input', { 'aria-label': 'Tags', type: 'text', placeholder: 'comma, separated' });
 
   const submit = () => {
     const text = title.value.trim();
     if (!text) return undefined;
-    app.stage(makeEvent('task.create', {
+    const accepted = app.stage(makeEvent('task.create', {
       taskId: newTaskId(),
       title: text,
       status: status.value,
       priority: priority.value,
       tags: tags.value.split(',').map((s) => s.trim()).filter(Boolean),
     }));
-    return true;
+    return accepted === false ? undefined : true;
   };
 
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (submit()) closer(); } });
@@ -220,5 +213,5 @@ export function newTaskDialog(app) {
       el('div', { class: 'field' }, el('label', { text: 'Tags' }), tags)),
     buttons: [{ label: 'Cancel', value: false }, { label: 'Add', class: 'primary', onClick: submit }],
   });
-  setTimeout(() => title.focus(), 50);
+  title.focus();
 }

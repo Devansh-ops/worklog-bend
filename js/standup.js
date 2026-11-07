@@ -26,7 +26,8 @@
  *
  * Pure: no DOM, no network, no clock beyond the date handed in.
  */
-import { makeEvent, localDate, todayISO } from './store.js';
+import { makeEvent, todayISO } from './store.js';
+import { reportItems } from './domain.js';
 
 /** How lines are grouped. A project word is the dominant shape; flat is for a short day. */
 export const GROUPINGS = Object.freeze([
@@ -43,24 +44,7 @@ export const DEFAULT_PREAMBLE = Object.freeze({
 /** Where work with no tag goes. "Misc" because that is what people write. */
 export const UNGROUPED = 'Misc';
 
-/** Event types that say something happened; the rest is bookkeeping nobody reports. */
-const REPORTABLE = new Set(['task.create', 'task.status', 'task.note']);
-
-/** Chat is one line per thought, so a multi-line note is flattened to one. */
 const oneLine = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-
-/**
- * A note as a pointer rather than a sentence: one line, and without the full stop
- * that makes a fragment read as prose. Only a lone trailing period goes — an
- * ellipsis is doing something deliberate, and the rest of your punctuation is yours.
- */
-function fragment(text) {
-  const s = oneLine(text);
-  return s.endsWith('.') && !s.endsWith('..') ? s.slice(0, -1) : s;
-}
-
-/** First tag is the project. Tags are the user's own words, so they are used verbatim. */
-const projectOf = (task) => oneLine((task.tags || [])[0]) || UNGROUPED;
 
 /**
  * Build the day's report from the log.
@@ -76,60 +60,14 @@ const projectOf = (task) => oneLine((task.tags || [])[0]) || UNGROUPED;
  * @param {string}  o.date    local ISO date the report is about
  * @param {boolean} o.includePlan  morning only: list what is in flight
  */
-export function buildReport({ tasks = [], events = [], kind = 'evening', date = todayISO(), includePlan = false } = {}) {
-  // Private tasks never reach a report, the same rule the AI payload follows. A
-  // deleted task is not news either -- it is a correction to the board.
-  const live = tasks.filter((t) => t && !t.private && !t.deleted);
-  const items = kind === 'morning'
-    ? (includePlan ? planItems(live) : [])
-    : dayItems(live, events, date);
-
-  items.sort((a, b) => String(a.firstTs).localeCompare(String(b.firstTs)));
+export function buildReport({ events = [], kind = 'evening', date = todayISO(), includePlan = false } = {}) {
+  const selected = reportItems(events, true, { date, kind, includePlan });
+  const items = selected.map(item => ({
+    text: item.didToday.join('; ') || item.task, title: item.task,
+    project: item.project, taskId: item.taskId, firstTs: item.firstTs,
+  }));
   return { kind, date, items, empty: !items.length };
 }
-
-/** What you touched on `date`. */
-function dayItems(live, events, date) {
-  const byId = new Map(live.map((t) => [t.id, t]));
-  const touched = new Map();
-
-  for (const e of [...events].sort((a, b) => String(a.ts).localeCompare(String(b.ts)))) {
-    if (!REPORTABLE.has(e.type) || localDate(e.ts) !== date) continue;
-    const task = byId.get(e.taskId);
-    if (!task) continue;
-
-    const entry = touched.get(task.id) || { task, firstTs: e.ts, notes: [] };
-    if (e.type === 'task.note' && fragment(e.text)) entry.notes.push(fragment(e.text));
-    touched.set(task.id, entry);
-  }
-
-  return [...touched.values()].map(({ task, firstTs, notes }) => ({
-    // Your note in preference to the task title, because the note is already the
-    // sentence these reports are made of -- "Injected the clock instead of sleeping
-    // on it" is what you did; "Flaky test in the scheduler suite" is a backlog entry.
-    // The title is the fallback for work you moved without writing anything down.
-    text: notes.join('; ') || oneLine(task.title),
-    title: oneLine(task.title),
-    project: projectOf(task),
-    taskId: task.id,
-    firstTs,
-  }));
-}
-
-/** Morning, when asked for it: what is already in flight. */
-function planItems(live) {
-  return live
-    .filter((t) => t.status === 'in_progress' || t.status === 'blocked')
-    .map((t) => ({
-      text: oneLine(t.title),
-      title: oneLine(t.title),
-      project: projectOf(t),
-      taskId: t.id,
-      // In-flight work has no event today to order by, so order by when it last moved.
-      firstTs: t.updated || t.created || '',
-    }));
-}
-
 /**
  * Render a report as the text you paste into a chat window.
  *

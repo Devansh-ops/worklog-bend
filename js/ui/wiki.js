@@ -17,6 +17,7 @@
  */
 import { STATUSES, statusLabel, localDate } from '../store.js';
 import { el, add, clear, plural, shortTime, age } from './dom.js';
+import { ownerProjection, journalDays, journalEvents, taskHistory, taggedTasks, relatedTasks } from '../domain.js';
 
 const TASK_REF = /\[\[(T-[0-9a-z]{6})\]\]|\b(T-[0-9a-z]{6})\b/g;
 
@@ -34,6 +35,8 @@ export class WikiView {
   go(section, selected = null) { this.section = section; this.selected = selected; this.app.refresh(); }
 
   render() {
+    const state = this.app.state;
+    this.projection = ownerProjection(state.events, this.app.search || '', true, state.compiled);
     clear(this.root);
     add(this.root,
       el('nav', { class: 'wiki-tabs' }, [['tasks', 'Tasks'], ['tags', 'Tags'], ['days', 'Days']]
@@ -57,36 +60,28 @@ export class WikiView {
 
   /** Matches the header search box, so searching narrows the wiki too. */
   get filtered() {
-    const q = (this.app.search || '').trim().toLowerCase();
-    const tasks = this.app.tasks;
-    if (!q) return tasks;
-    return tasks.filter((t) => `${t.id} ${t.title} ${t.tags.join(' ')} ${t.notes.map((n) => n.text).join(' ')}`.toLowerCase().includes(q));
+    return this.projection.tasks;
   }
 
   taskIndex() {
-    const byStatus = new Map(STATUSES.map((s) => [s.id, []]));
-    for (const t of this.filtered) (byStatus.get(t.status) || byStatus.get('todo')).push(t);
+    const byStatus = this.projection.columns;
 
     return el('div', { class: 'card' },
       el('h2', { text: 'Tasks' }),
       el('p', { class: 'sub', text: `${plural(this.filtered.length, 'task')}, grouped by where they stand. Click one to read its whole history.` }),
       el('div', { style: 'margin-top:10px' }, STATUSES.map(({ id, label }) => {
-        const list = byStatus.get(id);
+        const list = byStatus[id];
         if (!list.length) return null;
         return el('div', { class: 'wiki-group' },
           el('div', { class: 'section-label', text: `${label} (${list.length})` }),
-          el('ul', { class: 'wiki-list' }, list
-            .sort((a, b) => (a.updated < b.updated ? 1 : -1))
-            .map((t) => el('li', {},
+          el('ul', { class: 'wiki-list' }, list.map((t) => el('li', {},
               el('button', { class: 'wiki-link', text: t.title, on: { click: () => this.openTask(t.id) } }),
               el('span', { class: 'wiki-meta', text: ` ${t.id} · ${age(t.updated)}` })))));
       })));
   }
 
   tagIndex() {
-    const counts = new Map();
-    for (const t of this.filtered) for (const tag of t.tags) counts.set(tag, (counts.get(tag) || 0) + 1);
-    const tags = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const tags = this.projection.tags.map(item => [item.tag, item.count]);
 
     return el('div', { class: 'card' },
       el('h2', { text: 'Tags' }),
@@ -100,13 +95,7 @@ export class WikiView {
   }
 
   dayIndex() {
-    const days = new Map();
-    for (const e of this.app.state.events) {
-      // Local date, so an evening's work is filed under the evening you did it.
-      const d = localDate(e.ts);
-      days.set(d, (days.get(d) || 0) + 1);
-    }
-    const list = [...days.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const list = journalDays(this.app.state.events).map(item => [item.day, item.count]);
 
     return el('div', { class: 'card' },
       el('h2', { text: 'Days' }),
@@ -181,8 +170,9 @@ export class WikiView {
         el('p', { class: 'sub', text: `No task ${this.selected} in this log. It may have been created on another machine and not published yet.` }));
     }
 
-    const history = this.app.state.events.filter((e) => e.taskId === t.id);
-    const related = this.app.tasks.filter((o) => o.id !== t.id && o.tags.some((g) => t.tags.includes(g)));
+    const state = this.app.state;
+    const history = taskHistory(state.events, t.id);
+    const related = relatedTasks(state.events, t.id, state.compiled);
 
     return el('div', { class: 'card wiki-article' },
       el('div', { class: 'row' }, back, el('span', { class: 'spacer' }),
@@ -220,7 +210,8 @@ export class WikiView {
 
   tagPage(back) {
     const tag = this.selected;
-    const tasks = this.app.tasks.filter((t) => t.tags.includes(tag));
+    const state = this.app.state;
+    const tasks = taggedTasks(state.events, tag, state.compiled);
     return el('div', { class: 'card wiki-article' },
       back,
       el('h2', { text: `#${tag}` }),
@@ -232,8 +223,9 @@ export class WikiView {
 
   dayPage(back) {
     const date = this.selected;
-    const events = this.app.state.events.filter((e) => localDate(e.ts) === date);
+    const events = journalEvents(this.app.state.events, date);
     const summaries = this.app.state.summaries[date] || {};
+    const reports = this.app.state.standups[date] || {};
 
     return el('div', { class: 'card wiki-article' },
       back,
@@ -242,6 +234,9 @@ export class WikiView {
         el('div', { class: 'section-label', text: `${kind} summary` }),
         el('div', { class: 'headline', text: summaries[kind].headline }),
         el('ul', {}, (summaries[kind].bullets || []).map((b) => el('li', { text: b.text })))) : null)),
+      ['morning', 'evening'].map(kind => reports[kind] ? el('section', {},
+        el('div', { class: 'section-label', text: `${kind} report copied` }),
+        el('pre', { class: 'commit-preview', text: reports[kind].text })) : null),
       el('div', { class: 'section-label', text: plural(events.length, 'change') }),
       el('ul', { class: 'wiki-list' }, events.filter((e) => e.type !== 'summary.set').map((e) => el('li', {},
         el('span', { class: 'wiki-meta', text: `${shortTime(e.ts)} ` }),
@@ -286,6 +281,7 @@ function describeForWiki(e) {
     case 'task.edit': return `edited ${Object.keys(e.fields || {}).join(', ')}`;
     case 'task.delete': return 'removed';
     case 'summary.set': return `${e.kind} summary`;
+    case 'standup.set': return `${e.kind} report copied`;
     default: return e.type;
   }
 }

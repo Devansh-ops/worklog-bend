@@ -27,32 +27,32 @@ export function settingsDialog(app) {
   const cfg = app.settings;
 
   /* --- repo --- */
-  const owner = el('input', { type: 'text', value: cfg.owner || '', placeholder: 'your-github-username' });
+  const owner = el('input', { 'aria-label': 'Owner', type: 'text', value: cfg.owner || '', placeholder: 'your-github-username' });
   // Prefilled rather than hinted. As a placeholder, the suggested name read as a value
   // that was already there, so leaving it alone saved an empty repo and the create step
   // then had nothing to create. A suggestion you can accept by doing nothing has to
   // actually be in the field.
-  const repo = el('input', { type: 'text', value: cfg.repo || DEFAULT_REPO, placeholder: DEFAULT_REPO });
-  const branch = el('input', { type: 'text', value: cfg.branch || 'main' });
-  const gh = el('input', { type: 'password', placeholder: app.tokens.github ? MASK : 'ghp_… or github_pat_…', autocomplete: 'off' });
+  const repo = el('input', { 'aria-label': 'Repository', type: 'text', value: cfg.repo || DEFAULT_REPO, placeholder: DEFAULT_REPO });
+  const branch = el('input', { 'aria-label': 'Branch', type: 'text', value: cfg.branch || 'main' });
+  const gh = el('input', { 'aria-label': 'GitHub token', type: 'password', placeholder: app.tokens.github ? MASK : 'ghp_… or github_pat_…', autocomplete: 'off' });
 
   /* --- AI: mode first, then which provider inside that mode --- */
   const startProvider = cfg.provider && PROVIDERS[cfg.provider] ? cfg.provider : DEFAULT_PROVIDER;
   let currentMode = modeOf(startProvider);
   let currentProvider = startProvider;
 
-  const provider = el('select', {});
+  const provider = el('select', { 'aria-label': 'AI provider' });
   const providerField = el('div', { class: 'field' }, el('label', { text: 'Which one' }), provider);
 
-  const baseUrl = el('input', { type: 'text', autocomplete: 'off' });
+  const baseUrl = el('input', { 'aria-label': 'Endpoint URL', type: 'text', autocomplete: 'off' });
   const baseField = el('div', { class: 'field' }, el('label', { text: 'Endpoint URL' }), baseUrl,
     el('div', { class: 'hint', text: 'Must end at the path that serves /chat/completions.' }));
 
-  const key = el('input', { type: 'password', autocomplete: 'off' });
+  const key = el('input', { 'aria-label': 'API key', type: 'password', autocomplete: 'off' });
   const keyHint = el('div', { class: 'hint' });
   const keyField = el('div', { class: 'field' }, el('label', { text: 'API key' }), key, keyHint);
 
-  const model = el('input', { type: 'text', list: 'model-list', autocomplete: 'off', placeholder: 'model id' });
+  const model = el('input', { 'aria-label': 'Model', type: 'text', list: 'model-list', autocomplete: 'off', placeholder: 'model id' });
   const modelList = el('datalist', { id: 'model-list' });
   const loadBtn = el('button', { text: 'Load available models' });
   const modelField = el('div', { class: 'field' }, el('label', { text: 'Model' }), model, modelList,
@@ -127,7 +127,7 @@ export function settingsDialog(app) {
       p.setup ? el('div', { class: 'field' },
         el('label', { text: 'Starting it on your machine' }),
         el('pre', { class: 'commit-preview', text: p.setup }),
-        el('div', { class: 'hint', text: 'Nothing leaves your machine with a local provider, and it costs nothing to run.' })) : null,
+        el('div', { class: 'hint', text: 'Task context stays local only when the configured endpoint is on this machine. Remote overrides require cloud consent.' })) : null,
       p.note ? notice('info', p.note) : null,
       p.browser === 'unknown'
         ? notice('warn', 'Browsers can only call an endpoint that permits it. If requests fail with no error detail, the server is not sending CORS headers for this page.')
@@ -189,8 +189,8 @@ export function settingsDialog(app) {
 
   /* --- privacy & appearance --- */
   const sendNotes = el('input', { type: 'checkbox', checked: cfg.sendNotes !== false });
-  const reminderAt = el('input', { type: 'time', value: cfg.reminderAt || '' });
-  const theme = el('select', {}, [['auto', 'Match system'], ['light', 'Light'], ['dark', 'Dark']]
+  const reminderAt = el('input', { 'aria-label': 'End-of-day reminder', type: 'time', value: cfg.reminderAt || '' });
+  const theme = el('select', { 'aria-label': 'Theme' }, [['auto', 'Match system'], ['light', 'Light'], ['dark', 'Dark']]
     .map(([v, label]) => el('option', { value: v, selected: (cfg.theme || 'auto') === v, text: label })));
   const advanced = el('input', { type: 'checkbox', checked: !!cfg.advancedEndpoint });
   advanced.addEventListener('change', () => { cfg.advancedEndpoint = advanced.checked; applyProvider(); });
@@ -202,7 +202,7 @@ export function settingsDialog(app) {
   // made rather than one they never saw. Already decided? Their setting stands.
   const lockDefault = hasStoredTokens() ? isLocked() : true;
   const lock = el('input', { type: 'checkbox', checked: lockDefault });
-  const pass = el('input', { type: 'password', placeholder: 'passphrase', autocomplete: 'new-password', disabled: !lockDefault });
+  const pass = el('input', { 'aria-label': 'New vault passphrase', type: 'password', placeholder: 'passphrase', autocomplete: 'new-password', disabled: !lockDefault });
   const strength = el('div', { class: 'hint' });
   lock.addEventListener('change', () => { pass.disabled = !lock.checked; strength.textContent = ''; });
   pass.addEventListener('input', () => {
@@ -284,6 +284,12 @@ export function settingsDialog(app) {
             // re-authorise the next key pasted for the same provider.
             forgetConsent();
             app.tokens = { github: null, ai: {} };
+            app.credentialRevision = (app.credentialRevision || 0) + 1;
+            if (app.store?.repo) app.store.repo.token = null;
+            app.passphrase = null;
+            gh.value = ''; key.value = ''; pass.value = '';
+            gh.placeholder = 'GitHub token'; key.placeholder = 'API key';
+            for (const providerId of Object.keys(typedKeys)) delete typedKeys[providerId];
             toast('Tokens removed from this browser.');
           },
         },
@@ -337,8 +343,12 @@ export function settingsDialog(app) {
           const passphrase = wantLock ? (pass.value || app.passphrase) : null;
           if (wantLock && !passphrase) { toast('Enter a passphrase, or untick the lock.', 'error'); return undefined; }
 
-          await saveTokens({ githubToken: tokens.github, aiTokens: ai }, passphrase);
+          if (anySecret) await saveTokens({ githubToken: tokens.github, aiTokens: ai }, passphrase);
+          else clearTokens();
+          const githubTokenChanged = tokens.github !== app.tokens.github;
+          if (JSON.stringify(tokens) !== JSON.stringify(app.tokens)) app.credentialRevision = (app.credentialRevision || 0) + 1;
           app.tokens = tokens;
+          if (app.store?.repo) app.store.repo.token = tokens.github;
           app.passphrase = passphrase;
 
           const repoChanged = ownerVal !== cfg.owner || repoVal !== cfg.repo || branch.value.trim() !== cfg.branch;
@@ -359,7 +369,7 @@ export function settingsDialog(app) {
             ...(reminderAt.value !== (cfg.reminderAt || '') ? { reminderLastFired: '' } : {}),
             theme: theme.value,
           });
-          return repoChanged ? 'repo-changed' : 'saved';
+          return repoChanged || githubTokenChanged ? 'repo-changed' : 'saved';
         },
       },
     ],

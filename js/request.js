@@ -58,6 +58,7 @@ export function appRevision(app) {
     endpoint: endpointIdentity(app.endpoint),
     includeNotes: app.settings.sendNotes !== false,
     authoritative: app.demo || app.store?.authoritative === true,
+    credentials: app.credentialRevision || 0,
   };
 }
 

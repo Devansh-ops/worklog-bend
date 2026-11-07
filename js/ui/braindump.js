@@ -7,7 +7,7 @@
  */
 import { statusLabel } from '../store.js';
 import { proposeOperations, prepareOperationsRequest, approvedProposalEvents, AIError } from '../ai.js';
-import { appRevision, requireAuthoritative } from '../request.js';
+import { appRevision, requireAuthoritative, assertRequestCurrent } from '../request.js';
 import { endpointProblem } from '../providers.js';
 import { el, clear, notice, spinner, toast, plural } from './dom.js';
 import { confirmCloudSend, cloudHint, requestDetails } from './consent.js';
@@ -122,7 +122,8 @@ export class BraindumpView {
       try {
         requireAuthoritative(this.app);
         const events = await approvedProposalEvents(this.proposalRequest, ops, this.app.state.events);
-        this.app.stage(...events);
+        assertRequestCurrent(this.proposalRequest);
+        if (this.app.stage(...events) === false) throw new Error('The changes could not be saved. Your selected proposals remain available.');
         this.proposals = null;
         if (this.text === this.proposalRequest.freeText) this.text = '';
         toast(`Staged ${plural(ops.length, 'change')}. Review and publish when ready.`);

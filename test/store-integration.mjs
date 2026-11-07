@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Store, PATHS } from '../js/store.js';
 import { GitHubRepo, ConflictError } from '../js/github.js';
+import { createHash } from 'node:crypto';
 const storage = new Map();
 globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
 const event = (id, type, data = {}, ts = '2026-11-07T09:00:00.000Z') => ({ id, type, ts, ...data });
@@ -72,6 +73,32 @@ await check('network failure acknowledges nothing', async () => {
   await assert.rejects(() => store.push(plan), /network/);
   assert.deepEqual(store.pending.map(value => value.id), ['create']);
 });
+await check('compatible event and snapshot extensions survive without prototype-key loss', async () => {
+  const extended = JSON.parse(JSON.stringify(create).slice(0, -1) + ',"__proto__":{"canary":"event-extension"},"constructor":"retained"}');
+  const repo = withHistory([extended]);
+  repo.files.set(PATHS.board, JSON.stringify({ schema: 2, futureCacheField: { keep: true }, tasks: [{ id: create.taskId, futureTaskField: ['keep'] }] }));
+  const store = new Store(repo); await store.load(); store.stage(note);
+  const plan = await store.preparePublish();
+  const month = JSON.parse(plan.files.find(file => file.path === PATHS.month('2026-11')).text);
+  assert.equal(Object.hasOwn(month.events[0], '__proto__'), true);
+  assert.equal(month.events[0].constructor, 'retained');
+  const snapshot = JSON.parse(plan.files.find(file => file.path === PATHS.board).text);
+  assert.deepEqual(snapshot.futureCacheField, { keep: true });
+  assert.deepEqual(snapshot.tasks[0].futureTaskField, ['keep']);
+});
+await check('pending storage failure preserves edits in memory and malformed saved data is not overwritten', async () => {
+  const original = globalThis.localStorage;
+  const repo = withHistory(), store = new Store(repo); await store.load();
+  globalThis.localStorage = { ...original, setItem: () => { throw new Error('quota'); } };
+  assert.throws(() => store.stage(create), /remain in memory/);
+  assert.equal(store.pending[0].id, 'create');
+  globalThis.localStorage = original;
+  storage.set('worklog.pending.synthetic/data#main', '{"invalid":"array expected"}');
+  const broken = new Store(repo); await broken.load();
+  assert.equal(broken.recoveryRequired, true);
+  assert.throws(() => broken.stage(create), /Recover/);
+  assert.equal(storage.get('worklog.pending.synthetic/data#main'), '{"invalid":"array expected"}');
+});
 await check('future manifest, snapshot and month schemas refuse before any write plan', async () => {
   for (const path of [PATHS.manifest, PATHS.board, PATHS.month('2026-11')]) {
     const repo = withHistory();
@@ -137,5 +164,32 @@ await check('real GitHub adapter pins reads and rejects stale approved parent be
     assert.ok(requests.every(request => request.method === 'GET'));
     await assert.rejects(() => repo.commitFiles([{ path: '../outside', text: 'x' }], 'm', { expectedBase: revision('a') }), /Invalid/);
   } finally { globalThis.fetch = original; }
+});
+await check('complete source indexing discovers unlisted history and unchanged reloads use verified cache', async () => {
+  const privateCreate = event('old-private', 'task.create', { taskId: 'T-secret', title: 'PRIVATE_CANARY', private: true }, '2026-10-01T09:00:00.000Z');
+  const deletion = event('old-delete', 'task.delete', { taskId: 'T-secret' }, '2026-10-02T09:00:00.000Z');
+  const repo = withHistory([create]);
+  repo.files.set(PATHS.month('2026-10'), JSON.stringify({ month: '2026-10', events: [privateCreate, deletion] }));
+  repo.sourceIndex = async () => ({ revision: repo.readRevision, complete: true, months: ['2026-10', '2026-11'],
+    files: Object.fromEntries([...repo.readFiles].filter(([path]) => path.startsWith('data/')).map(([path, body]) => [path, {
+      sha: createHash('sha1').update(`blob ${Buffer.byteLength(body)}\0`).update(body).digest('hex'), size: Buffer.byteLength(body),
+    }])) });
+  const getFile = repo.getFile.bind(repo); let reads = 0;
+  repo.getFile = async path => {
+    reads++;
+    const file = await getFile(path);
+    return file ? { ...file, sha: createHash('sha1').update(`blob ${Buffer.byteLength(file.text)}\0`).update(file.text).digest('hex') } : null;
+  };
+  const store = new Store(repo); await store.load();
+  assert.equal(store.state.tasks.get('T-secret').deleted, true);
+  assert.ok(store.knownMonths.includes('2026-10'));
+  assert.equal(reads, 3);
+  reads = 0; await store.load();
+  assert.equal(reads, 0);
+  assert.equal(store.sourceCacheStats.hits, 3);
+  repo.files.set(PATHS.month('2026-10'), '{"schema":999,"month":"2026-10","events":[]}');
+  repo.revision = revision('c');
+  await assert.rejects(() => store.load(), /unsupported schema/);
+  assert.equal(repo.writes.length, 0);
 });
 console.log(`${checks} store/effect integration checks passed; synthetic HTTP and loopback only`);

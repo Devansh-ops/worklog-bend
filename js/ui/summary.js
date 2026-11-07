@@ -176,7 +176,7 @@ export class SummaryView {
           this.progressEl.textContent = `${text}${progress ? ` (${Math.round(progress * 100)}%)` : ''}`;
         },
       });
-      this.app.stage(summaryEvent({ date: today, kind, summary, model: endpoint.model }));
+      if (this.app.stage(summaryEvent({ date: today, kind, summary, model: endpoint.model })) === false) throw new Error('The generated summary could not be saved. Resolve the staging error before continuing.');
       toast('Summary written. It publishes with your next push.');
     } catch (e) {
       this.error = e instanceof AIError ? e.message : `Unexpected failure: ${e.message}`;

@@ -33,6 +33,7 @@ import { ConflictError } from './github.js';
 import { mergeEvents, replayEvents, validateCommand, encodeEvent, core } from './domain.js';
 import { parseJSON, canonicalJSON, immutableJSON, listToBend, listFromBend } from './codec.js';
 import publication from './generated/publication.mjs';
+import { createVerifiedSourceReader } from './source-cache.js';
 
 export const STATUSES = Object.freeze([
   { id: 'backlog',     label: 'Backlog' },
@@ -196,9 +197,9 @@ const EVENT_KEYS = ['ts', 'type', 'taskId', 'date', 'kind', 'title', 'status',
   'from', 'to', 'priority', 'tags', 'private', 'text', 'fields', 'summary', 'model', 'style', 'id'];
 
 function orderEvent(e) {
-  const out = {};
-  for (const k of EVENT_KEYS) if (k in e) out[k] = e[k];
-  for (const k of Object.keys(e)) if (!(k in out)) out[k] = e[k];   // never drop a field
+  const out = Object.create(null);
+  for (const k of EVENT_KEYS) if (Object.hasOwn(e, k)) out[k] = e[k];
+  for (const k of Object.keys(e)) if (!Object.hasOwn(out, k)) out[k] = e[k];
   return out;
 }
 
@@ -228,7 +229,7 @@ function describeEvent(e, tasks) {
     case 'task.edit':   return `${ref}: edited ${Object.keys(e.fields || {}).join(', ')}`;
     case 'task.delete': return `${ref}: removed`;
     case 'summary.set': return `${e.kind} summary for ${e.date}`;
-    case 'standup.set': return `${e.kind} report posted for ${e.date}`;
+    case 'standup.set': return `${e.kind} report copied for ${e.date}`;
     default:            return `${e.type} ${e.taskId || ''}`.trim();
   }
 }
@@ -537,7 +538,7 @@ const TASK_KEYS = ['id', 'title', 'status', 'priority', 'tags', 'created', 'upda
   'done', 'private', 'deleted', 'notes', 'noteCount'];
 
 function slimTask(t) {
-  const out = {};
+  const out = Object.create(null);
   for (const k of TASK_KEYS) {
     const v = t[k];
     if (v == null) continue;
@@ -621,7 +622,12 @@ export class Store {
     if (this.repo.demo) return;
     if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before overwriting it.');
     try { localStorage.setItem(this._pendingKey, canonicalJSON(this.pending)); this.storageError = null; }
-    catch (error) { this.storageError = error.message; throw new Error('Local storage failed. Changes remain in memory; keep this tab open.'); }
+    catch (error) {
+      this.storageError = error.message;
+      const failure = new Error('Local storage failed. Changes remain in memory; keep this tab open.');
+      failure.retainedInMemory = true;
+      throw failure;
+    }
   }
 
   recoverLegacyPending() {
@@ -637,6 +643,7 @@ export class Store {
 
   /** Stage events locally. Never contacts the network. */
   stage(...events) {
+    if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before editing.');
     if (!this.authoritative || !this.state.complete) throw new Error('Load complete supported history before editing.');
     let accepted = [...this.pending];
     for (const event of events.flat()) accepted.push(validateCommand(mergeEvents(this.remoteEvents, accepted), event));
@@ -708,8 +715,14 @@ export class Store {
    * because they are already folded into it.
    */
   get state() {
-    return replayEvents(mergeEvents(this.remoteEvents, this.pending));
+    if (this._derived?.remote !== this.remoteEvents || this._derived?.pending !== this.pending) {
+      const events = mergeEvents(this.remoteEvents, this.pending);
+      this._derived = { remote: this.remoteEvents, pending: this.pending, events, state: replayEvents(events) };
+    }
+    return this._derived.state;
   }
+
+  get events() { this.state; return this._derived.events; }
 
   get tasks() {
     return [...this.state.tasks.values()].filter((t) => !t.deleted);
@@ -727,7 +740,10 @@ export class Store {
     this.loaded = false;
     this.envelopes = new Map();
     this.schemas = new Map();
+    this.sourceReader = null;
     if (this.repo.pinRevision) await this.repo.pinRevision();
+    const index = this.repo.sourceIndex ? await this.repo.sourceIndex() : null;
+    if (index) this.sourceReader = createVerifiedSourceReader(this.repo, index);
     const manifest = await this._readJSON(PATHS.manifest);
     this.monthStats = readManifest(manifest);
     this.manifestSchema = Number(manifest?.schema) || 1;
@@ -735,7 +751,7 @@ export class Store {
     // Always include the current month, even on a repo that has never been written.
     const cur = monthOf(todayISO());
     if (!this.monthStats.has(cur)) this.monthStats.set(cur, { month: cur });
-    this.knownMonths = [...this.monthStats.keys()].sort();
+    this.knownMonths = [...new Set([...this.monthStats.keys(), ...(index?.months || [])])].sort();
 
     const snap = await this._readJSON(PATHS.board);
     // Schema 1/2 snapshots lack verifiable coverage. They are display caches only.
@@ -746,8 +762,10 @@ export class Store {
     this.loadedMonths = [];
     this.legacyMonths = [];
     await this.loadMonths(this.knownMonths);
+    this.sourceReader?.flush();
+    this.sourceCacheStats = this.sourceReader?.stats || null;
     this.loaded = true;
-    this.authoritative = this.state.complete;
+    this.authoritative = this.state.complete && !this.recoveryRequired;
     if (this.authoritative && this.pending.length) {
       const remaining = core.acknowledge(listToBend(this.pending, event => encodeEvent(event)), listToBend(this.remoteEvents, event => encodeEvent(event)), true);
       const recovered = listFromBend(remaining, event => parseJSON(event.canonical));
@@ -766,6 +784,12 @@ export class Store {
     const files = await Promise.all(todo.map((m) => this._readMonth(m)));
     this.remoteEvents = unionEvents(this.remoteEvents, ...files.map((f) => f?.events || []));
     this.loadedMonths = [...this.loadedMonths, ...todo].sort();
+    for (let index = 0; index < todo.length; index++) {
+      const month = todo[index], events = files[index]?.events || [];
+      if (!this.monthStats.has(month)) this.monthStats.set(month, {
+        month, events: events.length, days: new Set(events.map(event => localDate(event.ts))).size,
+      });
+    }
     return this;
   }
 
@@ -781,7 +805,7 @@ export class Store {
     const current = await this._readJSON(PATHS.month(month));
     const legacy = await this._readJSON(PATHS.legacyMonth(month));
     if (legacy && !this.legacyMonths.includes(month)) this.legacyMonths.push(month);
-    const extras = {};
+    const extras = Object.create(null);
     for (const envelope of [current, legacy]) {
       if (!envelope) continue;
       if (!Array.isArray(envelope.events)) throw new Error('Month events must be an array.');
@@ -796,7 +820,7 @@ export class Store {
   }
 
   async _readJSON(path) {
-    const file = await this.repo.getFile(path);
+    const file = await (this.sourceReader || this.repo).getFile(path);
     if (!file) return null;
     const value = parseJSON(file.text);
     if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(path + ' must be an object.');
@@ -808,7 +832,7 @@ export class Store {
   }
 
   _monthText(month, events) {
-    const extras = {};
+    const extras = Object.create(null);
     const current = this.envelopes.get(PATHS.month(month));
     const legacy = this.envelopes.get(PATHS.legacyMonth(month));
     if (current?.schema !== undefined || legacy?.schema !== undefined) extras.schema = current?.schema ?? legacy.schema;
@@ -822,6 +846,25 @@ export class Store {
 
   _manifestText(stats) {
     return JSON.stringify({ ...this.envelopes.get(PATHS.manifest), ...parseJSON(renderManifest(stats)) }, null, 2) + '\n';
+  }
+
+  _boardText(tasks, through) {
+    const previous = this.envelopes.get(PATHS.board) || {};
+    const generated = parseJSON(renderBoardSnapshot(tasks, through));
+    if (previous.retainedTaskExtensions !== undefined && (!previous.retainedTaskExtensions || typeof previous.retainedTaskExtensions !== 'object' || Array.isArray(previous.retainedTaskExtensions))) throw new Error('Unsupported retained snapshot extension envelope.');
+    const extensions = Object.assign(Object.create(null), previous.retainedTaskExtensions || {});
+    for (const task of previous.tasks || []) {
+      if (!task || typeof task.id !== 'string') continue;
+      const unknown = Object.fromEntries(Object.entries(task).filter(([key]) => !TASK_KEYS.includes(key)));
+      if (Object.keys(unknown).length) extensions[task.id] = { ...extensions[task.id], ...unknown };
+    }
+    generated.tasks = generated.tasks.map(task => ({ ...extensions[task.id], ...task }));
+    const output = { ...previous, ...generated,
+      ...(Object.keys(extensions).length ? { retainedTaskExtensions: extensions } : {}) };
+    const lines = output.tasks.map(task => '    ' + JSON.stringify(task));
+    delete output.tasks;
+    const head = JSON.stringify(output, null, 2);
+    return head.slice(0, -2) + ',\n  "tasks": [' + (lines.length ? '\n' + lines.join(',\n') + '\n  ' : '') + ']\n}\n';
   }
 
   _sealPlan(plan) {
@@ -883,7 +926,7 @@ export class Store {
     const through = merged[merged.length - 1] || null;
     const { tasks } = foldEvents(merged);
 
-    const months = [...new Set(merged.map(monthOfEvent))].sort();
+    const months = [...new Set([...merged.map(monthOfEvent), ...this.knownMonths])].sort();
     const stats = new Map();
     const eventsIn = new Map();
     for (const m of months) {
@@ -905,7 +948,7 @@ export class Store {
         { path: PATHS.monthMd(m), text: renderMonthMd(m, eventsIn.get(m), tasks) },
       ]),
       ...years.map((y) => ({ path: PATHS.yearReadme(y), text: renderYearReadme(y, statList) })),
-      { path: PATHS.board,     text: renderBoardSnapshot(tasks, through) },
+      { path: PATHS.board,     text: this._boardText(tasks, through) },
       { path: PATHS.boardMd,   text: renderBoardMd(tasks) },
       { path: PATHS.changelog, text: renderChangelogIndex(statList) },
       { path: PATHS.logReadme, text: renderLogReadme() },
@@ -985,7 +1028,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
         { path: PATHS.monthMd(m), text: renderMonthMd(m, eventsIn.get(m), tasks) },
       ]),
       ...touchedYears.map((y) => ({ path: PATHS.yearReadme(y), text: renderYearReadme(y, statList) })),
-      { path: PATHS.board,     text: renderBoardSnapshot(tasks, through) },
+      { path: PATHS.board,     text: this._boardText(tasks, through) },
       { path: PATHS.boardMd,   text: renderBoardMd(tasks) },
       { path: PATHS.changelog, text: renderChangelogIndex(statList) },
       { path: PATHS.logReadme, text: renderLogReadme() },

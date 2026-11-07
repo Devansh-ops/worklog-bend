@@ -10,6 +10,7 @@
  * so they are decided here where a test can set the clock.
  */
 import { localDate } from './store.js';
+import { reports } from './domain.js';
 
 /** 'HH:MM' -> minutes since local midnight, or null if it is not a time. */
 export function parseHHMM(text) {
@@ -44,22 +45,15 @@ export function reminderDue({ at, now = new Date(), lastFired = '', hasPending =
   const target = parseHHMM(at);
   const off = { due: false, reason: null, missing: [], today };
 
-  if (target === null) return off;
-  // Once per local day. Opening the app at 21:00 after missing 17:30 still gets it,
-  // because the check is "at or after", not "on the minute" -- a reminder that only
-  // fires if you happened to have the tab open is not a reminder.
-  if (lastFired === today) return off;
-  if (now.getHours() * 60 + now.getMinutes() < target) return off;
-
-  // Nothing to say is not worth saying. A day with everything published, the evening
-  // summary written and the team told is a day that went right.
-  if (!hasPending && hasEveningSummary && hasSignOff) return off;
+  const decision = reports.reminder_decision(target !== null, lastFired === today,
+    now.getHours() * 60 + now.getMinutes(), target ?? 0, hasPending, hasEveningSummary, hasSignOff);
+  if (decision.$ === 'ReminderOff') return off;
 
   // `missing` carries the detail; `reason` stays the coarse label older callers read.
   const missing = [
-    ...(hasEveningSummary ? [] : ['summary']),
-    ...(hasSignOff ? [] : ['signoff']),
+    ...(decision.missingSummary ? ['summary'] : []),
+    ...(decision.missingSignOff ? ['signoff'] : []),
   ];
-  const reason = hasPending && missing.length ? 'both' : hasPending ? 'pending' : missing[0];
+  const reason = decision.pending && missing.length ? 'both' : decision.pending ? 'pending' : missing[0];
   return { due: true, reason, missing, today };
 }

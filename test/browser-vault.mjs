@@ -40,7 +40,7 @@ try {
   await page.goto(`${origin}/project/?demo=1`);
   await page.getByRole('tab').filter({ hasText: 'Board (10)' }).waitFor();
   const result = await page.evaluate(async () => {
-    for (const name of ['core', 'reports', 'publication', 'views']) await import(`./js/generated/${name}.mjs`);
+    for (const name of ['core', 'reports', 'publication', 'views', 'planning']) await import(`./js/generated/${name}.mjs`);
     const vault = await import('./js/vault.js');
     const webllm = await import('./js/webllm.js');
     const { endpointProblem } = await import('./js/providers.js');
@@ -90,14 +90,51 @@ try {
   assert.deepEqual(result.unlocked, { githubToken: 'SYNTHETIC_GITHUB_TOKEN', aiTokens: { openai: 'SYNTHETIC_PROVIDER_TOKEN' } });
   for (const restored of [result.legacyEncrypted, result.legacyPlain]) assert.deepEqual(restored, { githubToken: 'SYNTHETIC_LEGACY_GITHUB', aiTokens: { huggingface: 'SYNTHETIC_LEGACY_HF' } });
   assert.equal(result.gpuPresent, false); assert.match(result.gpuError, /no WebGPU/); assert.match(result.gpuProblem, /no WebGPU/); assert.deepEqual(result.loadedModels, []);
+  await page.evaluate(async () => {
+    const vault = await import('./js/vault.js');
+    const { settingsDialog } = await import('./js/ui/settings.js');
+    const { resolveEndpoint } = await import('./js/providers.js');
+    const { prepareOperationsRequest } = await import('./js/ai.js');
+    const { appRevision } = await import('./js/request.js');
+    await vault.saveTokens({ githubToken: 'SYNTHETIC_OLD_GITHUB', aiTokens: { custom: 'SYNTHETIC_OLD_AI' } }, 'synthetic forget passphrase');
+    window.forgetApp = {
+      settings: { owner: 'synthetic', repo: 'data', branch: 'main', provider: 'custom', baseUrl: 'https://synthetic.invalid/v1', model: 'synthetic-model', sendNotes: false },
+      tokens: { github: 'SYNTHETIC_OLD_GITHUB', ai: { custom: 'SYNTHETIC_OLD_AI' } }, credentialRevision: 0,
+      store: { authoritative: true, repo: { token: 'SYNTHETIC_OLD_GITHUB' } },
+      state: { complete: true, events: [{ id: 'create', ts: '2026-11-07T09:00:00.000Z', type: 'task.create', taskId: 'T-public', title: 'Synthetic' }] },
+      get endpoint() { return resolveEndpoint(this.settings, this.tokens.ai); },
+      saveSettings(value) { this.settings = { ...this.settings, ...value }; },
+    };
+    window.beforeForgetRequest = await prepareOperationsRequest({ endpoint: forgetApp.endpoint, events: forgetApp.state.events,
+      text: 'Synthetic', readCurrent: () => appRevision(forgetApp) });
+    window.forgetFinished = false;
+    settingsDialog(forgetApp).then(() => { window.forgetFinished = true; });
+  });
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await settings.getByLabel('GitHub token', { exact: true }).fill('SYNTHETIC_UNSAVED_GITHUB');
+  await settings.getByLabel('API key', { exact: true }).fill('SYNTHETIC_UNSAVED_AI');
+  await settings.getByLabel('New vault passphrase', { exact: true }).fill('synthetic unsaved passphrase');
+  await settings.getByRole('button', { name: 'Forget tokens on this browser', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Forget stored tokens?', exact: true }).getByRole('button', { name: 'Forget them', exact: true }).click();
+  for (const label of ['GitHub token', 'API key', 'New vault passphrase']) assert.equal(await settings.getByLabel(label, { exact: true }).inputValue(), '');
+  const revoked = await page.evaluate(async () => {
+    const { requestTransport } = await import('./js/request.js');
+    let stale = false;
+    try { requestTransport(beforeForgetRequest); } catch (error) { stale = /changed/.test(error.message); }
+    return { github: forgetApp.tokens.github, ai: forgetApp.tokens.ai, activeToken: forgetApp.store.repo.token, stale, revision: forgetApp.credentialRevision };
+  });
+  assert.deepEqual(revoked, { github: null, ai: {}, activeToken: null, stale: true, revision: 1 });
+  await settings.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.waitForFunction(() => window.forgetFinished);
+  assert.deepEqual(await page.evaluate(async () => ({ tokens: forgetApp.tokens, stored: (await import('./js/vault.js')).hasStoredTokens() })), { tokens: { github: null, ai: {} }, stored: false });
   for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole('button', { name: '+ Task', exact: true }).waitFor();
     assert.equal(await page.title(), 'Work Log');
   }
-  for (const name of ['core', 'reports', 'publication', 'views']) assert.ok(loaded.some(item => item.path === `/project/js/generated/${name}.mjs` && item.status === 200), `Subpath missing ${name}`);
+  for (const name of ['core', 'reports', 'publication', 'views', 'planning']) assert.ok(loaded.some(item => item.path === `/project/js/generated/${name}.mjs` && item.status === 200), `Subpath missing ${name}`);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
-  console.log(`Chromium ${await browser.version()}: actual PBKDF2/AES-GCM, wrong-passphrase/tamper rejection, legacy records, forget, unavailable WebGPU, and static /project/ module loading passed. No external requests.`);
+  console.log(`Chromium ${await browser.version()}: actual PBKDF2/AES-GCM, legacy records, UI forget/session revocation without typed-key resurrection, unavailable WebGPU, and static /project/ module loading passed. No external requests.`);
 } finally {
   await browser?.close();
   await new Promise(done => server.close(done));

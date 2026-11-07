@@ -39,7 +39,7 @@ export function welcomeDialog() {
 export async function unlockDialog() {
   if (!isLocked()) return { tokens: await loadTokens(), passphrase: null };
 
-  const pass = el('input', { type: 'password', placeholder: 'passphrase', autocomplete: 'current-password' });
+  const pass = el('input', { 'aria-label': 'Vault passphrase', type: 'password', placeholder: 'passphrase', autocomplete: 'current-password' });
   const err = el('div', {});
 
   const { done, close } = dialog({

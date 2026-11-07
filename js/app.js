@@ -24,7 +24,7 @@ import { SummaryView } from './ui/summary.js';
 import { StandupView } from './ui/standup.js';
 import { WikiView } from './ui/wiki.js';
 import { settingsDialog } from './ui/settings.js';
-import { resolveEndpoint, endpointProblem, PROVIDERS } from './providers.js';
+import { resolveEndpoint, endpointProblem, PROVIDERS, isLocalDestination } from './providers.js';
 import { welcomeDialog, unlockDialog, offerScaffold } from './ui/setup.js';
 import { demoRepo } from './demo.js';
 
@@ -74,6 +74,7 @@ class App {
   constructor() {
     this.settings = { ...DEFAULTS, ...readJSON(CONFIG_KEY) };
     this.tokens = { github: null, ai: {} };
+    this.credentialRevision = 0;
     this.passphrase = null;
     this.search = '';
     this.panes = this.restorePanes();
@@ -167,7 +168,7 @@ class App {
 
   /** Everything a view needs about the world, in one place. */
   get state() {
-    const events = this.store ? unionEvents(this.store.remoteEvents, this.store.pending) : [];
+    const events = this.store ? this.store.events : [];
     const folded = this.store ? this.store.state : foldEvents([]);
     return {
       ...folded,
@@ -213,6 +214,7 @@ class App {
     if (hasStoredTokens()) {
       const { tokens } = await unlockDialog();
       this.tokens = { github: tokens?.githubToken || null, ai: tokens?.aiTokens || {} };
+      this.credentialRevision++;
       this.passphrase = null;
     }
 
@@ -298,10 +300,11 @@ class App {
   /* ---------- staging (local only) -------------------------------------- */
 
   stage(...events) {
-    if (!this.store) { toast('Set up a data repo first.', 'error'); return; }
+    if (!this.store) { toast('Set up a data repo first.', 'error'); return false; }
     try { this.store.stage(...events); }
-    catch (error) { toast(error.message, 'error'); }
+    catch (error) { toast(error.message, 'error'); this.refresh(); return error.retainedInMemory === true; }
     this.refresh();
+    return true;
   }
 
   async discard() {
@@ -538,9 +541,21 @@ class App {
   }
 
   refresh() {
+    const previous = document.activeElement;
+    const task = previous?.dataset?.task;
+    const action = previous?.getAttribute?.('data-action');
+    const label = previous?.getAttribute?.('aria-label');
+    const selection = typeof previous?.selectionStart === 'number' ? [previous.selectionStart, previous.selectionEnd] : null;
     this.renderHeader();
     this.renderNav();
     this.renderMain();
+    if (previous && !previous.isConnected) {
+      const candidate = task ? Array.from(document.querySelectorAll('[data-task]')).find(node => node.dataset.task === task)
+        : action ? Array.from(document.querySelectorAll('[data-action]')).find(node => node.getAttribute('data-action') === action)
+          : label ? Array.from(document.querySelectorAll('[aria-label]')).find(node => node.tagName === previous.tagName && node.getAttribute('aria-label') === label) : null;
+      candidate?.focus();
+      if (candidate && selection && typeof candidate.setSelectionRange === 'function') candidate.setSelectionRange(...selection);
+    }
   }
 
   renderHeader() {
@@ -581,7 +596,7 @@ class App {
       this.demo
         ? el('button', { class: 'primary', text: 'Set up mine', title: 'Point this at a repo of your own', on: { click: () => this.leaveDemo() } })
         : el('button', { class: 'primary', text: 'Publish', disabled: !this.hasPending, on: { click: () => this.publish() } }),
-      el('button', { text: '+ Task', disabled: !this.store, on: { click: () => newTaskDialog(this) } }),
+      el('button', { text: '+ Task', 'data-action': 'new-task', disabled: !this.store?.authoritative, on: { click: () => newTaskDialog(this) } }),
       el('button', {
         class: 'icon ghost',
         text: '⚙',
@@ -605,18 +620,20 @@ class App {
   aiChip() {
     const ep = this.endpoint;
     const p = PROVIDERS[ep.id] || {};
-    const mode = p.mode || 'off';
+    const mode = ep.kind === 'none' ? 'off' : isLocalDestination(ep) ? 'local' : 'cloud';
     const rules = ep.kind === 'rules';
-    const text = rules ? 'AI: demo rules' : mode === 'off' ? 'AI off' : mode === 'local' ? 'AI: local' : `AI: ${p.label.split(' (')[0]}`;
+    const providerLabel = ep.label || p.label || 'Provider';
+    const text = rules ? 'AI: demo rules' : mode === 'off' ? 'AI off' : mode === 'local' ? 'AI: local' : `AI: ${providerLabel.split(' (')[0]}`;
     const title = rules
       ? 'The demo interpreter: keyword rules in this page, not a model. Nothing is sent anywhere.'
       : mode === 'off'
-        ? 'No model configured — nothing is sent anywhere but your repo.'
+        ? 'No model configured. Nothing is sent anywhere but your repo.'
         : mode === 'local'
-          ? `${p.label} — task data stays on this machine.`
-          : `${p.label} — task titles (and notes, unless you turn that off) are sent there.`;
+          ? `${providerLabel}. Task context stays on this machine.`
+          : `Requests go to ${ep.baseUrl || providerLabel}. Review the disclosed context before sending.`;
     return el('button', {
       class: `ai-chip mode-${mode}`,
+      'data-action': 'ai-settings',
       text,
       title,
       on: {
@@ -636,6 +653,7 @@ class App {
       const open = this.isOpen(id);
       this.nav.append(el('button', {
         role: 'tab',
+        'data-action': `pane-${id}`,
         'aria-selected': String(open),
         class: open ? 'open' : '',
         title: this.capacity === 1
@@ -684,6 +702,16 @@ class App {
       this.main.append(el('div', { class: 'view-narrow', style: 'margin-bottom:14px' },
         notice('info', 'Read-only: no GitHub token loaded, so nothing can be published. Add one in Settings.')));
     }
+
+    if (this.store && this.state.complete === false) {
+      this.main.append(el('section', { class: 'notice warn', 'aria-label': 'History diagnostics' },
+        el('strong', { text: 'This history needs attention. Editing, AI context and publishing are disabled.' }),
+        el('ul', {}, (this.state.diagnostics || []).map(issue => el('li', { text:
+          `${issue.$}: event ${issue.eventId || ''}${issue.taskId ? ` references ${issue.taskId}` : ''}${issue.kind ? ` (${issue.kind})` : ''}` })))));
+    }
+    if (this.store?.storageError) this.main.append(notice('warn', this.store.recoveryRequired
+      ? 'Saved local changes could not be read and remain preserved. Recover the saved pending data before editing or sending model context.'
+      : 'Browser storage failed. Current changes remain in this tab; keep it open until they are published or recovered.'));
 
     if (this.demo) this.main.append(this.demoBanner());
     if (this.store?.needsMigration) this.main.append(this.migrationBanner());
@@ -830,6 +858,7 @@ class App {
             text: '×',
             title: `Close ${label}`,
             'aria-label': `Close ${label}`,
+            'data-action': `pane-${id}`,
             on: { click: () => { this.closePane(id); this.refresh(); } },
           })));
       }

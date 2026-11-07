@@ -36,6 +36,7 @@ function b64ToUtf8(b64) {
   return _dec.decode(out);
 }
 
+import { readSourceIndex } from './source-index.js';
 const API = 'https://api.github.com';
 
 /** The name scripts/setup.sh picks when none is given; the app suggests the same one. */
@@ -111,9 +112,11 @@ export class GitHubRepo {
 
   get slug() { return `${this.owner}/${this.repo}`; }
 
+  sourceIndex() { return readSourceIndex(this); }
+
   async pinRevision() {
     const ref = await this._json(`${API}/repos/${this.slug}/git/ref/heads/${encodeURIComponent(this.branch)}`);
-    if (!/^[0-9a-f]{40,64}$/.test(ref?.object?.sha || '')) throw new Error('GitHub returned an invalid read revision.');
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(ref?.object?.sha || '')) throw new Error('GitHub returned an invalid read revision.');
     this.readRevision = ref.object.sha;
     return this.readRevision;
   }
@@ -373,7 +376,7 @@ export class GitHubRepo {
   async commitFiles(files, message, { deletions = [], expectedBase } = {}) {
     if (!this.token) throw new AuthError('A GitHub token is required to save changes.');
     if (!files.length && !deletions.length) return null;
-    if (!/^[0-9a-f]{40,64}$/.test(expectedBase || '')) throw new Error('A revision-bound approved plan is required. Preview again before publishing.');
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(expectedBase || '')) throw new Error('A revision-bound approved plan is required. Preview again before publishing.');
     const paths = new Set();
     for (const file of files) {
       this._path(file.path);

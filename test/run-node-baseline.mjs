@@ -1,4 +1,4 @@
-// Run the unchanged upstream JSC suites in isolated Node processes.
+// Run the inherited JSC suites with reviewed Bend-contract fixture updates in isolated Node processes.
 // These suites deliberately shim browser APIs; this is not browser evidence.
 import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';

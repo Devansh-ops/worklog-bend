@@ -59,6 +59,28 @@ try {
     await page.getByRole('tab').filter({ hasText: 'Board (10)' }).waitFor();
     console.log(`Demo browser passed width ${width}: render, task dialog focus, synthetic edit, safe text, ephemeral reload`);
   }
+  await page.getByRole('tab').filter({ hasText: 'Wiki' }).click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-action') === 'pane-wiki');
+  await page.getByRole('tab').filter({ hasText: 'Board' }).click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-action') === 'pane-board');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await settings.waitFor();
+  for (const label of ['Owner', 'Repository', 'Branch', 'GitHub token', 'End-of-day reminder', 'Theme', 'New vault passphrase']) {
+    assert.equal(await settings.getByLabel(label, { exact: true }).isVisible(), true, label);
+  }
+  await settings.getByLabel('Owner', { exact: true }).fill('synthetic-cancelled');
+  await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Settings');
+  console.log('Settings controls have accessible names; Cancel restores focus without saving the edit.');
+  await page.evaluate(() => localStorage.setItem('worklog.config.v1', JSON.stringify({ provider: 'ollama', baseUrl: 'https://synthetic.invalid/v1', model: 'synthetic-model' })));
+  await page.reload();
+  const chip = page.locator('.ai-chip');
+  await chip.waitFor();
+  assert.ok((await chip.getAttribute('class')).includes('mode-cloud'));
+  assert.ok((await chip.getAttribute('title')).includes('https://synthetic.invalid/v1'));
+  assert.ok(!(await chip.innerText()).includes('local'));
+  console.log('A remote override of a local preset is shown as remote and sends nothing automatically.');
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   console.log(`Chromium ${await browser.version()}; no page errors or external requests`);

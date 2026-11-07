@@ -54,6 +54,10 @@ export const $ = (sel, root = document) => root.querySelector(sel);
  * dismissed with Escape or the backdrop — so callers can treat "no answer" as a no.
  */
 export function dialog({ title, body, buttons = [], onClose = null, dismissable = true }) {
+  const previous = document.activeElement;
+  const previousTask = previous?.dataset?.task;
+  const previousLabel = previous?.getAttribute?.('aria-label');
+  const previousAction = previous?.getAttribute?.('data-action');
   const dlg = el('dialog', { 'aria-label': title });
   let settle;
   const done = new Promise((res) => { settle = res; });
@@ -67,7 +71,12 @@ export function dialog({ title, body, buttons = [], onClose = null, dismissable 
       class: b.class || '',
       text: b.label,
       disabled: !!b.disabled,
-      on: { click: async () => { const v = b.value !== undefined ? b.value : (b.onClick ? await b.onClick(dlg) : true); if (v !== undefined) close(v); } },
+      on: { click: async () => {
+        try {
+          const v = b.value !== undefined ? b.value : (b.onClick ? await b.onClick(dlg) : true);
+          if (v !== undefined) close(v);
+        } catch (error) { toast(error.message || 'The action could not finish. Your input is still available.', 'error'); }
+      } },
     }));
   }
 
@@ -81,7 +90,17 @@ export function dialog({ title, body, buttons = [], onClose = null, dismissable 
     if (!dismissable) { e.preventDefault(); return; }
     settle(null);
   });
-  dlg.addEventListener('close', () => { settle(null); onClose?.(); dlg.remove(); });
+  dlg.addEventListener('close', () => {
+    settle(null); onClose?.(); dlg.remove();
+    if (previous?.isConnected) previous.focus();
+    else {
+      const replacement = previousTask
+        ? Array.from(document.querySelectorAll('[data-task]')).find(node => node.dataset.task === previousTask)
+        : previousLabel ? Array.from(document.querySelectorAll('[aria-label]')).find(node => node.tagName === previous.tagName && node.getAttribute('aria-label') === previousLabel)
+          : previousAction ? Array.from(document.querySelectorAll('[data-action]')).find(node => node.getAttribute('data-action') === previousAction) : null;
+      (replacement || document.querySelector('[data-action="new-task"]'))?.focus();
+    }
+  });
 
   document.body.append(dlg);
   dlg.showModal();
