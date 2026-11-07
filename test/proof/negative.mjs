@@ -55,6 +55,27 @@ const mutations = [
     replacement: 'case True{}:\n      xs\n    case False{}:\n      xs',
     failure: /ScanProof.unique_put_invariant|scan_preserves_ids|successful_merge_has_exact_input_ids/,
   },
+  {
+    name: 'disabled reminder fires',
+    file: 'Reports.bend',
+    source: 'Bool.and(enabled, Bool.and(Bool.not(alreadyFired),',
+    replacement: 'Bool.and(True{}, Bool.and(Bool.not(alreadyFired),',
+    failure: /reminder_disabled_witness/,
+  },
+  {
+    name: 'complete-day reminder fires',
+    file: 'Reports.bend',
+    source: 'reminder_needed(hasPending, hasEveningSummary, hasSignOff)',
+    replacement: 'True{}',
+    failure: /reminder_complete_day_witness/,
+  },
+  {
+    name: 'report includes ineligible task',
+    file: 'Reports.bend',
+    source: 'case Some{item} True{}:',
+    replacement: 'case Some{item} _:',
+    failure: /ReportsProof.ineligible_item|reports_omit_private_head|reports_omit_deleted_head/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {

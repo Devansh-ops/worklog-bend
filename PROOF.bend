@@ -3,11 +3,18 @@ import ./LAWS.bend as Laws
 import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
+import ./bend/Reports.bend as Reports
 
 def Laws.future_schema_refused_witness():
   {==}
 
 def Laws.changed_plan_refused_witness():
+  {==}
+
+def Laws.reminder_disabled_witness():
+  {==}
+
+def Laws.reminder_complete_day_witness():
   {==}
 
 def Laws.word_order_reflexive(n, w):
@@ -876,3 +883,119 @@ def Laws.merge_preserves_ids(left, right, id):
 def Laws.successful_merge_has_exact_input_ids(left, right, output, id, success):
   %success : Laws.SuccessfulIds(_, id, Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)))
   Laws.merge_preserves_ids(left, right, id)
+
+def Laws.and_false_from_right(a, b, absent):
+  Equal.trans(Bool, Bool.and(a, b), Bool.and(a, False{}), False{},
+    Equal.cong(Bool, Bool, value => Bool.and(a, value), b, False{}, absent), Laws.and_false_right(a))
+
+def Laws.less_order_not_ge(order, before):
+  match order:
+    case LT{}:
+      {==}
+    case EQ{}:
+      Empty.absurd({True{} == False{} : Bool}, Laws.false_is_not_true(before))
+    case GT{}:
+      Empty.absurd({True{} == False{} : Bool}, Laws.false_is_not_true(before))
+
+def ReminderProof.off(enabled: Bool, alreadyFired: Bool, now: U32, target: U32, pending: Bool, summary: Bool, signOff: Bool,
+  guard: {Bool.and(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))))) == False{} : Bool}) ->
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}:
+  Equal.cong(Bool, Reports.ReminderDecision,
+    due => Bool.pick(Reports.ReminderDecision, due, Reports.ReminderDue{pending, Bool.not(summary), Bool.not(signOff)}, Reports.ReminderOff{}),
+    Bool.and(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))))), False{}, guard)
+
+def ReminderProof.no_missing(+enabled: Bool, +alreadyFired: Bool, +now: U32, +target: U32, +pending: Bool, +summary: Bool, +signOff: Bool,
+  none: {Reports.reminder_needed(pending, summary, signOff) == False{} : Bool}) ->
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}:
+  ReminderProof.off(enabled, alreadyFired, now, target, pending, summary, signOff,
+    Laws.and_false_from_right(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))))),
+      Laws.and_false_from_right(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))),
+        Laws.and_false_from_right(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))),
+          Laws.and_false_from_right(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)),
+            Laws.and_false_from_right(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff), none))))))
+
+def Laws.reminder_disabled_is_off(alreadyFired, now, target, pending, summary, signOff):
+  {==}
+
+def Laws.reminder_already_fired_is_off(enabled, now, target, pending, summary, signOff):
+  match enabled:
+    case False{}:
+      {==}
+    case True{}:
+      {==}
+
+def Laws.reminder_complete_day_is_off(enabled, alreadyFired, now, target):
+  ReminderProof.no_missing(enabled, alreadyFired, now, target, False{}, True{}, True{}, {==})
+
+def Laws.reminder_before_target_is_off(enabled, alreadyFired, now, target, pending, summary, signOff, before):
+  ReminderProof.off(enabled, alreadyFired, now, target, pending, summary, signOff,
+    Laws.and_false_from_right(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))))),
+      Laws.and_false_from_right(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))),
+        Laws.and_false_from_right(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))),
+          Laws.and_false_from_right(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)),
+            Equal.cong(Bool, Bool, reached => Bool.and(reached, Reports.reminder_needed(pending, summary, signOff)), U32.is_ge(now, target), False{},
+              Laws.less_order_not_ge(U32.cmp(now, target), before)))))))
+
+def Laws.reminder_invalid_now_is_off(enabled, alreadyFired, now, target, pending, summary, signOff, invalid):
+  ReminderProof.off(enabled, alreadyFired, now, target, pending, summary, signOff,
+    Laws.and_false_from_right(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))))),
+      Laws.and_false_from_right(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))),
+        Equal.cong(Bool, Bool, valid => Bool.and(valid, Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))), U32.is_lt(now, 1440), False{}, invalid))))
+
+def Laws.reminder_invalid_target_is_off(enabled, alreadyFired, now, target, pending, summary, signOff, invalid):
+  ReminderProof.off(enabled, alreadyFired, now, target, pending, summary, signOff,
+    Laws.and_false_from_right(enabled, Bool.and(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))))),
+      Laws.and_false_from_right(Bool.not(alreadyFired), Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))),
+        Laws.and_false_from_right(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))),
+          Equal.cong(Bool, Bool, valid => Bool.and(valid, Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))), U32.is_lt(target, 1440), False{}, invalid)))))
+
+def Laws.reminder_due_under_valid_guards(now, target, pending, summary, signOff, nowValid, targetValid, reached, missing):
+  Equal.cong(Bool, Reports.ReminderDecision,
+    due => Bool.pick(Reports.ReminderDecision, due, Reports.ReminderDue{pending, Bool.not(summary), Bool.not(signOff)}, Reports.ReminderOff{}),
+    Bool.and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)))), True{},
+    Laws.true_and(U32.is_lt(now, 1440), Bool.and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff))), nowValid,
+      Laws.true_and(U32.is_lt(target, 1440), Bool.and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff)), targetValid,
+        Laws.true_and(U32.is_ge(now, target), Reports.reminder_needed(pending, summary, signOff), reached, missing))))
+
+def Laws.reminder_due_witness():
+  {==}
+
+def ReportsProof.ineligible_item(chosen: Maybe<&2, Reports.ReportItem>, rest: List<&2, Reports.ReportItem>) ->
+  {Reports.item_put(chosen, rest, False{}) == rest : List<&2, Reports.ReportItem>}:
+  match chosen:
+    case None{}:
+      {==}
+    case Some{item}:
+      {==}
+
+def Laws.reports_omit_private_head(task, rest, events, sendNotes, morning, includePlan):
+  match task:
+    case T.Task{id, title, status, priority, tags, private, deleted, created, updated, completed, notes}:
+      ReportsProof.ineligible_item(
+        Reports.report_item(T.Task{id, title, status, priority, tags, True{}, deleted, created, updated, completed, notes}, events, sendNotes, morning, includePlan),
+        Reports.report_tasks(rest, events, sendNotes, morning, includePlan))
+
+def Laws.reports_omit_deleted_head(task, instant, rest, events, sendNotes, morning, includePlan):
+  match task:
+    case T.Task{id, title, status, priority, tags, private, deleted, created, updated, completed, notes}:
+      match private:
+        case False{}:
+          ReportsProof.ineligible_item(
+            Reports.report_item(T.Task{id, title, status, priority, tags, False{}, True{}, created, instant, completed, notes}, events, sendNotes, morning, includePlan),
+            Reports.report_tasks(rest, events, sendNotes, morning, includePlan))
+        case True{}:
+          ReportsProof.ineligible_item(
+            Reports.report_item(T.Task{id, title, status, priority, tags, True{}, True{}, created, instant, completed, notes}, events, sendNotes, morning, includePlan),
+            Reports.report_tasks(rest, events, sendNotes, morning, includePlan))
+
+def ReportsProof.incomplete(result: T.MergeResult, tasks: List<&2, T.Task>, summaries: List<&2, T.Recorded>, reports: List<&2, T.Recorded>, diagnostics: List<&2, T.Diagnostic>,
+  sendNotes: Bool, day: String, morning: Bool, includePlan: Bool) ->
+  {Reports.report_merged(result, T.State{tasks, summaries, reports, diagnostics, False{}}, sendNotes, day, morning, includePlan) == Nil{} : List<&2, Reports.ReportItem>}:
+  match result:
+    case T.EventConflict{id}:
+      {==}
+    case T.Merged{events}:
+      {==}
+
+def Laws.reports_withhold_incomplete_state(tasks, summaries, reports, diagnostics, events, sendNotes, day, morning, includePlan):
+  ReportsProof.incomplete(Core.merge(events, Nil{}), tasks, summaries, reports, diagnostics, sendNotes, day, morning, includePlan)

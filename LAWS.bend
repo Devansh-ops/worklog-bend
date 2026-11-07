@@ -2,6 +2,7 @@ import Base
 import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
+import ./bend/Reports.bend as Reports
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -536,3 +537,124 @@ law successful_merge_has_exact_input_ids:
   for id: String
   for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
   {Core.ids_contains(output, id) == Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)) : Bool}
+
+law and_false_from_right:
+  for a: Bool
+  for b: Bool
+  for absent: {b == False{} : Bool}
+  {Bool.and(a, b) == False{} : Bool}
+
+law less_order_not_ge:
+  for order: Cmp
+  for before: {Cmp.is_lt(order) == True{} : Bool}
+  {Cmp.is_ge(order) == False{} : Bool}
+
+law reminder_disabled_is_off:
+  for alreadyFired: Bool
+  for now: U32
+  for target: U32
+  for pending: Bool
+  for summary: Bool
+  for signOff: Bool
+  {Reports.reminder_decision(False{}, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_already_fired_is_off:
+  for enabled: Bool
+  for now: U32
+  for target: U32
+  for pending: Bool
+  for summary: Bool
+  for signOff: Bool
+  {Reports.reminder_decision(enabled, True{}, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_complete_day_is_off:
+  for +enabled: Bool
+  for +alreadyFired: Bool
+  for +now: U32
+  for +target: U32
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, False{}, True{}, True{}) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_before_target_is_off:
+  for +enabled: Bool
+  for +alreadyFired: Bool
+  for +now: U32
+  for +target: U32
+  for +pending: Bool
+  for +summary: Bool
+  for +signOff: Bool
+  for before: {U32.is_lt(now, target) == True{} : Bool}
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_invalid_now_is_off:
+  for +enabled: Bool
+  for +alreadyFired: Bool
+  for +now: U32
+  for +target: U32
+  for +pending: Bool
+  for +summary: Bool
+  for +signOff: Bool
+  for invalid: {U32.is_lt(now, 1440) == False{} : Bool}
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_invalid_target_is_off:
+  for +enabled: Bool
+  for +alreadyFired: Bool
+  for +now: U32
+  for +target: U32
+  for +pending: Bool
+  for +summary: Bool
+  for +signOff: Bool
+  for invalid: {U32.is_lt(target, 1440) == False{} : Bool}
+  {Reports.reminder_decision(enabled, alreadyFired, now, target, pending, summary, signOff) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_due_under_valid_guards:
+  for +now: U32
+  for +target: U32
+  for +pending: Bool
+  for +summary: Bool
+  for +signOff: Bool
+  for nowValid: {U32.is_lt(now, 1440) == True{} : Bool}
+  for targetValid: {U32.is_lt(target, 1440) == True{} : Bool}
+  for reached: {U32.is_ge(now, target) == True{} : Bool}
+  for missing: {Reports.reminder_needed(pending, summary, signOff) == True{} : Bool}
+  {Reports.reminder_decision(True{}, False{}, now, target, pending, summary, signOff) == Reports.ReminderDue{pending, Bool.not(summary), Bool.not(signOff)} : Reports.ReminderDecision}
+
+law reminder_due_witness:
+  {Reports.reminder_decision(True{}, False{}, 1050, 1050, True{}, True{}, True{}) == Reports.ReminderDue{True{}, False{}, False{}} : Reports.ReminderDecision}
+
+law reminder_disabled_witness:
+  {Reports.reminder_decision(False{}, False{}, 1050, 1050, True{}, True{}, True{}) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reminder_complete_day_witness:
+  {Reports.reminder_decision(True{}, False{}, 1050, 1050, False{}, True{}, True{}) == Reports.ReminderOff{} : Reports.ReminderDecision}
+
+law reports_omit_private_head:
+  for +task: T.Task
+  for +rest: List<&2, T.Task>
+  for +events: List<&2, T.ContextEvent>
+  for +sendNotes: Bool
+  for +morning: Bool
+  for +includePlan: Bool
+  {Reports.report_tasks(force_private(task) <> rest, events, sendNotes, morning, includePlan) == Reports.report_tasks(rest, events, sendNotes, morning, includePlan) : List<&2, Reports.ReportItem>}
+
+law reports_omit_deleted_head:
+  for +task: T.Task
+  for instant: String
+  for +rest: List<&2, T.Task>
+  for +events: List<&2, T.ContextEvent>
+  for +sendNotes: Bool
+  for +morning: Bool
+  for +includePlan: Bool
+  {Reports.report_tasks(Core.delete_task(task, instant) <> rest, events, sendNotes, morning, includePlan) == Reports.report_tasks(rest, events, sendNotes, morning, includePlan) : List<&2, Reports.ReportItem>}
+
+law reports_withhold_incomplete_state:
+  for tasks: List<&2, T.Task>
+  for summaries: List<&2, T.Recorded>
+  for reports: List<&2, T.Recorded>
+  for diagnostics: List<&2, T.Diagnostic>
+  for events: List<&2, T.DomainEvent>
+  for sendNotes: Bool
+  for day: String
+  for morning: Bool
+  for includePlan: Bool
+  {Reports.report_items(T.State{tasks, summaries, reports, diagnostics, False{}}, events, sendNotes, day, morning, includePlan) == Nil{} : List<&2, Reports.ReportItem>}
