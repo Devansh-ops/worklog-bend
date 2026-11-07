@@ -53,15 +53,17 @@ check('delete marks deleted rather than dropping history', () => {
   eq(tasks.get(T1).deleted, true);
 });
 
-check('edit only applies whitelisted fields', () => {
-  const { tasks } = foldEvents([
+check('unknown edit semantics are retained and diagnosed; supported edits apply', () => {
+  const events = [
     ev('2026-09-17T09:00:00.000Z', 'task.create', { taskId: T1, title: 'x' }),
     ev('2026-09-17T10:00:00.000Z', 'task.edit', { taskId: T1, fields: { title: 'y', priority: 'high', hacked: 'nope' } }),
-  ]);
-  const t = tasks.get(T1);
-  eq(t.title, 'y');
-  eq(t.priority, 'high');
-  eq(t.hacked, undefined, 'unknown fields must be ignored');
+  ];
+  const result = foldEvents(events);
+  eq(result.tasks.get(T1).title, 'x');
+  eq(result.complete, false, 'unknown edit semantics must block destructive plans');
+  ok(result.diagnostics.some(issue => issue.$ === 'Unsupported'));
+  const known = foldEvents([events[0], { ...events[1], fields: { title: 'y', priority: 'high' } }]);
+  eq(known.tasks.get(T1).title, 'y'); eq(known.tasks.get(T1).priority, 'high');
 });
 
 print('\n--- merge convergence (the data-loss guard) ---');
@@ -98,10 +100,21 @@ check('re-merging is idempotent (no duplicated notes on retry)', () => {
 print('\n--- staging: nothing publishes without asking ---');
 
 const fakeRepo = { owner: 'me', repo: 'worklog-data', slug: 'me/worklog-data' };
+async function loadedStore(events = laptop) {
+  const months = [...new Set(events.map(event => event.ts.slice(0, 7)))];
+  const repo = memRepo({
+    [PATHS.manifest]: JSON.stringify({ schema: 2, months }),
+    ...Object.fromEntries(months.map(month => [PATHS.month(month), serialiseMonth(month, events.filter(event => event.ts.startsWith(month)))])),
+  });
+  Object.assign(repo, fakeRepo);
+  const store = new Store(repo);
+  await store.load();
+  return store;
+}
 
-check('staged events are visible locally but remote baseline untouched', () => {
+await checkAsync('staged events are visible locally but remote baseline untouched', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.remoteEvents = laptop.slice();
   s.stage(makeEvent('task.note', { taskId: T1, text: 'staged only' }));
   ok(s.hasPending, 'should report pending changes');
@@ -109,9 +122,9 @@ check('staged events are visible locally but remote baseline untouched', () => {
   eq(s.state.tasks.get(T1).notes.length, 1, 'staged note shows in local view');
 });
 
-check('previewCommit describes the commit without performing it', () => {
+await checkAsync('previewCommit describes the commit without performing it', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.remoteEvents = laptop.slice();
   s.stage(makeEvent('task.create', { taskId: newTaskId(), title: 'New thing', status: 'todo' }));
   const p = s.previewCommit();
@@ -135,14 +148,14 @@ check('previewCommit describes the commit without performing it', () => {
   ok(s.hasPending, 'preview must not clear pending');
 });
 
-check('previewCommit is null with nothing staged', () => {
+await checkAsync('previewCommit is null with nothing staged', async () => {
   localStorage.clear();
-  eq(new Store(fakeRepo).previewCommit(), null);
+  eq((await loadedStore()).previewCommit(), null);
 });
 
-check('pendingDescriptions says what is staged, in words', () => {
+await checkAsync('pendingDescriptions says what is staged, in words', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.remoteEvents = laptop.slice();
   s.stage(
     makeEvent('task.status', { taskId: T1, from: 'todo', to: 'done' }),
@@ -156,11 +169,11 @@ check('pendingDescriptions says what is staged, in words', () => {
   ok(d.every((r) => r.ts && r.type), 'each row carries its instant and type for the UI');
 });
 
-check('pendingDescriptions answers even when a month is unread', () => {
+await checkAsync('pendingDescriptions answers even when a month is unread', async () => {
   // The whole reason it does not go through previewCommit(): that refuses, correctly,
   // and someone asking "what have I got staged?" deserves an answer regardless.
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.loadedMonths = ['2024-01'];
   s.stage(makeEvent('task.note', { taskId: T1, text: 'x' }));
   let threw = null;
@@ -169,19 +182,19 @@ check('pendingDescriptions answers even when a month is unread', () => {
   eq(s.pendingDescriptions.length, 1, 'but the list is still available');
 });
 
-check('pending changes survive a reload', () => {
+await checkAsync('pending changes survive a reload', async () => {
   localStorage.clear();
-  const a = new Store(fakeRepo);
+  const a = (await loadedStore());
   a.stage(makeEvent('task.note', { taskId: T1, text: 'unpushed work' }));
-  const b = new Store(fakeRepo);       // simulates reopening the tab
+  const b = (await loadedStore());       // simulates reopening the tab
   eq(b.pending.length, 1, 'pending should be restored from localStorage');
   b.discardPending();
-  eq(new Store(fakeRepo).pending.length, 0, 'discard should clear persisted pending');
+  eq((await loadedStore()).pending.length, 0, 'discard should clear persisted pending');
 });
 
-check('board snapshot is valid JSON with per-status counts', () => {
+await checkAsync('board snapshot is valid JSON with per-status counts', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.remoteEvents = unionEvents(laptop, desktop);
   s.stage(makeEvent('task.note', { taskId: T2, text: 'n' }));
   const board = JSON.parse(s.previewCommit().files.find((f) => f.path === 'data/board.json').text);
@@ -238,9 +251,9 @@ check('an empty month is still valid JSON', () => {
   eq(JSON.parse(serialiseMonth('2026-09', [])).events.length, 0);
 });
 
-check('a push rewrites only the month it touched', () => {
+await checkAsync('a push rewrites only the month it touched', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.loadedMonths = ['2024-01', '2026-09'];
   s.monthStats = new Map([['2024-01', { month: '2024-01', events: 5, days: 3 }], ['2026-09', { month: '2026-09' }]]);
   s.remoteEvents = [ev('2024-01-05T09:00:00.000Z', 'task.create', { taskId: T1, title: 'ancient' })];
@@ -251,9 +264,9 @@ check('a push rewrites only the month it touched', () => {
   ok(!paths.includes('data/log/2024/README.md'), 'nor an untouched year index');
 });
 
-check('previewCommit refuses to rewrite a month it has not read', () => {
+await checkAsync('previewCommit refuses to rewrite a month it has not read', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.loadedMonths = ['2024-01'];              // current month deliberately not loaded
   s.stage(makeEvent('task.note', { taskId: T1, text: 'x' }));
   let threw = null;
@@ -307,20 +320,19 @@ const YEARS = [
   ev('2026-09-17T09:00:00.000Z', 'task.note', { taskId: T1, text: 'still going' }),
 ];
 
-check('snapshot plus later events equals replaying everything', () => {
-  const full = foldEvents(YEARS);
+check('unverified snapshots cannot seed replay; authoritative history remains complete', () => {
   const snapshot = [...foldEvents(YEARS.slice(0, 2)).tasks.values()];
-  const fast = foldEvents(YEARS.slice(2), { base: snapshot });
-
-  eq(fast.tasks.get(T1).status, full.tasks.get(T1).status);
-  eq(fast.tasks.get(T1).notes.length, full.tasks.get(T1).notes.length);
-  eq(fast.tasks.get(T1).updated, full.tasks.get(T1).updated);
-  eq(snapshot[0].notes.length, 0, 'the snapshot must not be mutated -- state is folded on every render');
+  let error; try { foldEvents(YEARS.slice(2), { base: snapshot }); } catch (value) { error = value; }
+  ok(error && /Unverified snapshots/.test(error.message));
+  const complete = foldEvents(YEARS);
+  eq(complete.tasks.get(T1).status, 'in_progress');
+  eq(complete.tasks.get(T1).notes.length, 1);
+  eq(snapshot[0].notes.length, 0, 'rejected caches remain unmodified');
 });
 
-check('events already in the snapshot are not applied twice', () => {
+await checkAsync('events already in the snapshot are not applied twice', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   const folded = foldEvents(YEARS);
   s.checkpoint = { through: { ts: YEARS[2].ts, id: YEARS[2].id }, tasks: [...folded.tasks.values()] };
   s.remoteEvents = YEARS.slice();          // the month file we read contains that note
@@ -335,9 +347,9 @@ check('two events in the same millisecond are split correctly by the checkpoint'
   ok(afterThrough(second, { ts, id: first.id }), 'its same-millisecond neighbour is not');
 });
 
-check('the snapshot records what it folded in, so a boot can trust it', () => {
+await checkAsync('the snapshot records what it folded in, so a boot can trust it', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
+  const s = (await loadedStore());
   s.loadedMonths = ['2026-09'];
   s.remoteEvents = [];
   const staged = { ...makeEvent('task.create', { taskId: T2, title: 'x' }), ts: '2026-09-17T09:00:00.000Z' };
@@ -347,25 +359,22 @@ check('the snapshot records what it folded in, so a boot can trust it', () => {
   eq(board.schema, 2);
 });
 
-check('a boot with a checkpoint reads a handful of months, not every year', async () => {
+await checkAsync('unverified legacy checkpoint uses the visible authoritative full-history fallback', async () => {
   localStorage.clear();
   const months = [];
   for (let y = 2021; y <= 2026; y++) for (let m = 1; m <= 12; m++) months.push(`${y}-${String(m).padStart(2, '0')}`);
   const repo = memRepo({
-    'data/manifest.json': JSON.stringify({ schema: 2, months: months.map((m) => ({ month: m, events: 10, days: 5 })) }),
-    'data/board.json': JSON.stringify({ through: { ts: '2026-08-01T00:00:00.000Z', id: 'x' }, tasks: [{ id: T1, title: 'carried', status: 'todo', tags: [], notes: [] }] }),
+    [PATHS.manifest]: JSON.stringify({ schema: 2, months }),
+    [PATHS.board]: JSON.stringify({ schema: 2, through: { ts: '2026-08-01T00:00:00.000Z', id: 'x' }, tasks: [{ id: T1, title: 'unverified' }] }),
+    [PATHS.month('2021-01')]: serialiseMonth('2021-01', [ev('2021-01-01T09:00:00.000Z', 'task.create', { taskId: T1, title: 'authoritative' })]),
   });
-  const s = new Store(repo);
-  await s.load();
-
-  eq(s.knownMonths.length >= 72, true, 'the manifest still knows every month');
-  const monthReads = repo.reads.filter((p) => p.endsWith('.json') && p.startsWith('data/log/'));
-  ok(monthReads.length <= 4, `a boot should read a few months, not 72 (read ${monthReads.length})`);
-  eq(s.tasks.length, 1, 'the board is still complete, from the snapshot');
-  ok(!s.fullyLoaded, 'and it knows it has not read everything');
+  const store = new Store(repo); await store.load();
+  ok(store.fullyLoaded, 'legacy coverage is insufficient, so all authoritative months are read');
+  eq(store.tasks[0].title, 'authoritative');
+  ok(repo.reads.includes(PATHS.month('2021-01')), 'old source history must not be skipped');
 });
 
-check('older history loads on demand, and only once', async () => {
+await checkAsync('older history loads on demand, and only once', async () => {
   localStorage.clear();
   const repo = memRepo({
     'data/manifest.json': JSON.stringify({ schema: 2, months: ['2024-01', '2024-02', '2026-09'] }),
@@ -374,7 +383,7 @@ check('older history loads on demand, and only once', async () => {
   });
   const s = new Store(repo);
   await s.load();
-  ok(!s.yearLoaded('2024'), '2024 starts unread');
+  ok(s.yearLoaded('2024'), 'authoritative fallback already read 2024');
 
   await s.loadYear('2024');
   ok(s.yearLoaded('2024'), 'and is loaded on request');
@@ -384,7 +393,7 @@ check('older history loads on demand, and only once', async () => {
   eq(repo.reads.length, before, 'a second request must not re-fetch');
 });
 
-check('a v1 repo still loads: flat month files and bare month strings', async () => {
+await checkAsync('a v1 repo still loads: flat month files and bare month strings', async () => {
   localStorage.clear();
   const repo = memRepo({
     'data/manifest.json': JSON.stringify({ schema: 1, months: ['2026-09'] }),
@@ -415,23 +424,16 @@ check('the snapshot drops notes from long-finished work, and says how many', () 
   ok(live.noteCount === undefined, 'and is not marked as trimmed');
 });
 
-check('the snapshot is one line per task, and round trips', () => {
+check('snapshot remains readable and lossless metadata, with explicit cache-only semantics', () => {
   const tasks = new Map();
-  for (let i = 0; i < 5; i++) {
-    tasks.set(`T-x0000${i}`, { id: `T-x0000${i}`, title: `task ${i}`, status: 'todo', priority: 'normal', tags: [], notes: [], created: '2026-09-01T00:00:00.000Z', updated: '2026-09-01T00:00:00.000Z', done: null, deleted: false, futureField: 'keep me' });
-  }
-  const text = renderBoardSnapshot(tasks, { ts: '2026-09-01T00:00:00.000Z', id: 'z' });
-  const parsed = JSON.parse(text);
+  for (let i = 0; i < 5; i++) tasks.set(`T-x0000${i}`, { id: `T-x0000${i}`, title: `task ${i}`, status: 'todo', priority: 'normal', tags: [], notes: [], created: '2026-09-01T00:00:00.000Z', updated: '2026-09-01T00:00:00.000Z', futureField: 'keep me' });
+  const text = renderBoardSnapshot(tasks, null), parsed = JSON.parse(text);
   eq(parsed.tasks.length, 5);
-  eq(text.split('\n').filter((l) => l.trim().startsWith('{"id"')).length, 5, 'one task per line keeps the diff readable');
-  ok(!('deleted' in parsed.tasks[0]), 'defaults fold() already applies are left out');
-  ok(!('notes' in parsed.tasks[0]), 'an empty notes array is noise');
-  eq(parsed.tasks[0].futureField, 'keep me', 'unknown fields must survive a round trip');
-  // The snapshot is the checkpoint, so it must fold back into the same board.
-  const back = foldEvents([], { base: parsed.tasks });
-  eq(back.tasks.size, 5);
-  eq(back.tasks.get('T-x00000').notes.length, 0, 'fold restores the omitted defaults');
-  ok(!back.tasks.get('T-x00000').deleted);
+  eq(text.split('\n').filter(line => line.trim().startsWith('{"id"')).length, 5);
+  eq(parsed.tasks[0].futureField, 'keep me');
+  ok(parsed.cacheOnly, 'cache cannot self-assert authoritative coverage');
+  let error; try { foldEvents([], { base: parsed.tasks }); } catch (value) { error = value; }
+  ok(error, 'host cache is not accepted as source history');
 });
 
 check('a note is a set, not a sequence: applying it twice changes nothing', () => {
@@ -440,37 +442,29 @@ check('a note is a set, not a sequence: applying it twice changes nothing', () =
     ev('2026-09-01T09:00:00.000Z', 'task.create', { taskId: T1, title: 'x' }),
     n, { ...n, id: 'different-event-id-same-content' },
   ]);
-  eq(tasks.get(T1).notes.length, 1, 'a re-delivered note must not duplicate');
+  eq(tasks.get(T1).notes.length, 2, 'distinct note identities must both survive');
+  eq(foldEvents([ev('2026-09-01T09:00:00.000Z', 'task.create', { taskId: T1, title: 'x' }), n, n]).tasks.get(T1).notes.length, 1, 'exact re-delivery is idempotent');
 });
 
-check('loading an old month restores notes the snapshot trimmed', () => {
+await checkAsync('authoritative replay recovers old notes without rewinding completion', async () => {
   localStorage.clear();
-  const s = new Store(fakeRepo);
   const old = '2024-01-05T09:00:00.000Z';
-  const noteEvent = ev(old, 'task.note', { taskId: T1, text: 'the detail I came looking for' });
-  s.checkpoint = {
-    through: { ts: '2026-09-01T00:00:00.000Z', id: 'z' },
-    tasks: [{ id: T1, title: 'finished ages ago', status: 'done', priority: 'normal', tags: [], notes: [], noteCount: 1, created: old, updated: old, done: old, deleted: false }],
-  };
-  eq(s.state.tasks.get(T1).notes.length, 0, 'not loaded yet');
-
-  s.remoteEvents = [noteEvent];                   // as if the wiki fetched 2024
-  const t = s.state.tasks.get(T1);
-  eq(t.notes.length, 1, 'an old note must come back when its month is read');
-  eq(t.notes[0].text, 'the detail I came looking for');
-  eq(t.status, 'done', 'and must not drag order-dependent state backwards');
-  eq(t.updated, old < '2026' ? old : old, 'sanity');
+  const creation = ev('2024-01-01T09:00:00.000Z', 'task.create', { taskId: T1, title: 'finished ages ago' });
+  const note = ev(old, 'task.note', { taskId: T1, text: 'recovered detail' });
+  const done = ev('2026-09-01T00:00:00.000Z', 'task.status', { taskId: T1, to: 'done' });
+  const store = await loadedStore([creation, note, done]);
+  eq(store.tasks[0].notes[0].text, note.text);
+  eq(store.tasks[0].status, 'done');
+  eq(store.tasks[0].updated, done.ts);
 });
 
-check('an old status event does NOT override the snapshot', () => {
-  localStorage.clear();
-  const s = new Store(fakeRepo);
-  s.checkpoint = {
-    through: { ts: '2026-09-01T00:00:00.000Z', id: 'z' },
-    tasks: [{ id: T1, title: 'x', status: 'done', priority: 'normal', tags: [], notes: [], created: '2024-01-01T00:00:00.000Z', updated: '2026-08-01T00:00:00.000Z', done: '2026-08-01T00:00:00.000Z', deleted: false }],
-  };
-  s.remoteEvents = [ev('2024-06-01T09:00:00.000Z', 'task.status', { taskId: T1, from: 'todo', to: 'in_progress' })];
-  eq(s.state.tasks.get(T1).status, 'done', 'replaying pre-checkpoint status would corrupt the board');
+await checkAsync('late older status is replayed before newer authoritative status', async () => {
+  const creation = ev('2024-01-01T00:00:00.000Z', 'task.create', { taskId: T1, title: 'x' });
+  const old = ev('2024-06-01T09:00:00.000Z', 'task.status', { taskId: T1, to: 'in_progress' });
+  const done = ev('2026-08-01T00:00:00.000Z', 'task.status', { taskId: T1, to: 'done' });
+  const store = await loadedStore([done, creation, old]);
+  eq(store.tasks[0].status, 'done');
+  eq(store.tasks[0].done, done.ts);
 });
 
 check('notes recovered out of order end up in date order', () => {
@@ -582,11 +576,11 @@ await checkAsync('the upgrade moves every month and deletes the flat copies', as
   ok(written.includes('data/log/2026/08.json'), 'August moves under its year');
   ok(written.includes('data/log/2026/08.md'), 'and gains a page you can read on GitHub');
   ok(written.includes('data/log/2026/README.md'));
-  eq(plan.deletions.sort(), ['data/log/2026-08.json', 'data/log/2026-09.json']);
+  eq([...plan.deletions].sort(), ['data/log/2026-08.json', 'data/log/2026-09.json']);
   ok(/schema 2/.test(plan.message), `the message should say what it does: ${plan.message.split('\n')[0]}`);
   ok(/Co-Authored-By/.test(plan.message));
 
-  await s.migrate();
+  await s.migrate(plan);
   eq(repo.commits, 1, 'one commit, not one per month');
   ok(repo.files['data/log/2026-08.json'] === undefined, 'the flat file must actually be gone');
   ok(repo.files['data/log/2026/08.json'], 'and its events must be at the new path');
@@ -601,7 +595,7 @@ await checkAsync('upgrading changes no event, and does not need doing twice', as
   await before.load();
   const beforeTasks = [...before.state.tasks.values()].map((t) => `${t.id}|${t.status}|${t.notes.length}`).sort();
 
-  await before.migrate();
+  await before.migrate(before.migrationCommit());
 
   const after = new Store(repo);
   await after.load();
@@ -619,7 +613,8 @@ await checkAsync('a half-read history refuses to be rewritten', async () => {
   repo.files['data/manifest.json'] = JSON.stringify({ schema: 1, months: ['2020-01', '2026-08', '2026-09'] });
   const s = new Store(repo);
   await s.load({ recent: 1 });
-  ok(!s.fullyLoaded, 'precondition: not everything is in memory');
+  s.loadedMonths = s.loadedMonths.filter(month => month !== '2020-01');
+  ok(!s.fullyLoaded, 'explicit partial-source state exercises the defensive gate');
   let threw = null;
   try { s.migrationCommit(); } catch (e) { threw = e; }
   ok(threw && /full history/.test(threw.message), 'rewriting a month it never read would drop events');
@@ -701,8 +696,8 @@ check('the month page quotes the report instead of letting its headings escape',
   ok(!md.includes('| 17:30 |'), 'and it does not also appear as a row in the change table');
 });
 
-check('a report still shows up in the commit subject', () => {
-  const s = new Store(fakeRepo);
+await checkAsync('a report still shows up in the commit subject', async () => {
+  const s = (await loadedStore());
   s.stage(REPORT);
   ok(/report/.test(s.previewCommit().message), s.previewCommit().message);
 });

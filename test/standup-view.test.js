@@ -33,14 +33,19 @@ const task = (id, title, extra = {}) => ({
 
 /** An app double: the three things a view reads, and a record of what it staged. */
 function fakeApp(tasks, events) {
+  const history = [
+    ...tasks.map((task, index) => ({ id: 'fixture-create-' + index, ts: task.created, type: 'task.create', taskId: task.id, title: task.title, status: task.status, priority: task.priority, tags: task.tags, private: task.private })),
+    ...events.map((event, index) => ({ ...event, id: event.id || 'fixture-event-' + index })),
+  ];
   return {
+    store: { authoritative: true },
     tasks,
     staged: [],
     refreshes: 0,
     settings: { sendNotes: true },
     endpoint: { kind: 'none' },
     onRules: false,
-    state: { events, standups: {}, summaries: {}, lastEventTs: null },
+    state: { events: history, complete: true, standups: {}, summaries: {}, lastEventTs: null },
     stage(...evs) { this.staged.push(...evs); },
     refresh() { this.refreshes++; },
     go() {},

@@ -141,17 +141,17 @@ await checkAsync('creating a repo that lands on the wrong account fails loudly',
   const r = new GitHubRepo({ owner: 'some-org', repo: 'd', branch: 'main', token: 'ghp_x' });
   let threw = null;
   await withFetch(
-    async () => ({ ok: true, status: 201, async json() { return { full_name: 'me/d', private: true, default_branch: 'main' }; } }),
+    async (url) => ({ ok: true, status: 201, async json() { return url.endsWith('/user') ? { login: 'me' } : { full_name: 'me/d', private: true, default_branch: 'main' }; } }),
     () => r.createRepo({ private: true }).catch((e) => { threw = e; }),
   );
   ok(threw, 'a repo created under the wrong owner must reject');
-  ok(/me\/d/.test(threw.message) && /some-org\/d/.test(threw.message), `and name both places: ${threw?.message}`);
+  ok(/authenticated personal account/.test(threw.message), 'the account mismatch must reject before creation');
 });
 
 await checkAsync('creating it on the token owner account succeeds', async () => {
   const r = new GitHubRepo({ owner: 'Me', repo: 'd', branch: 'main', token: 'ghp_x' });
   const out = await withFetch(
-    async () => ({ ok: true, status: 201, async json() { return { full_name: 'me/d', private: true, html_url: 'u', default_branch: 'main' }; } }),
+    async (url) => ({ ok: true, status: 201, async json() { return url.endsWith('/user') ? { login: 'me' } : { full_name: 'me/d', private: true, html_url: 'u', default_branch: 'main' }; } }),
     () => r.createRepo({ private: true }),
   );
   eq(out.created, true, 'a case difference in the owner is the same account');

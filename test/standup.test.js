@@ -28,7 +28,21 @@ const moved = (taskId, to, ts) => ({ ts, type: 'task.status', taskId, to });
 const noted = (taskId, text, ts) => ({ ts, type: 'task.note', taskId, text });
 const made = (taskId, ts) => ({ ts, type: 'task.create', taskId });
 
-const build = (tasks, events, o = {}) => buildReport({ tasks, events, date: DAY, ...o });
+const build = (tasks, events, o = {}) => {
+  // Authoritative synthetic history, rather than trusting separate task rows.
+  const history = tasks.flatMap((task, index) => {
+    if (events.some(event => event.type === 'task.create' && event.taskId === task.id)) return [];
+    return [{ id: `fixture-create-${index}`, ts: yesterday(0), type: 'task.create', taskId: task.id,
+      title: task.title, status: task.status, priority: task.priority, tags: task.tags, private: task.private }];
+  });
+  for (const [index, event] of events.entries()) {
+    const original = tasks.find(task => task.id === event.taskId);
+    const fields = event.type === 'task.create' && original ? { title: original.title, status: original.status, priority: original.priority, tags: original.tags, private: original.private } : {};
+    history.push({ ...fields, ...event, id: event.id || `fixture-event-${index}` });
+  }
+  for (const [index, task] of tasks.entries()) if (task.deleted) history.push({ id: `fixture-delete-${index}`, ts: at(23, 59), type: 'task.delete', taskId: task.id });
+  return buildReport({ tasks, events: history, date: DAY, ...o });
+};
 
 console.log('--- what a line says ---');
 
