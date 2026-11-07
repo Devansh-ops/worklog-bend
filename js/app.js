@@ -709,6 +709,7 @@ class App {
         el('ul', {}, (this.state.diagnostics || []).map(issue => el('li', { text:
           `${issue.$}: event ${issue.eventId || ''}${issue.taskId ? ` references ${issue.taskId}` : ''}${issue.kind ? ` (${issue.kind})` : ''}` })))));
     }
+    if (this.store?.storageNotice) this.main.append(notice('info', this.store.storageNotice));
     if (this.store?.storageError) this.main.append(notice('warn', this.store.recoveryRequired
       ? 'Saved local changes could not be read and remain preserved. Recover the saved pending data before editing or sending model context.'
       : 'Browser storage failed. Current changes remain in this tab; keep it open until they are published or recovered.'));

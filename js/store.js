@@ -682,6 +682,7 @@ export class Store {
     if (this.repo.demo) return;
     if (this.recoveryRequired) throw new Error('Recover the invalid saved pending data before overwriting it.');
     let journaled = false;
+    this.storageNotice = null;
     try {
       const peerChanged = localStorage.getItem(this._pendingKey) !== this._pendingRaw;
       const added = this._withoutEvents(this.pending, this._persistedPending);
@@ -706,7 +707,8 @@ export class Store {
       const raw = canonicalJSON(restored.pending);
       localStorage.setItem(this._pendingKey, raw);
       this._pendingRaw = raw;
-      this.storageError = peerChanged ? 'Changes from another tab were reconciled with this tab. Review the pending list.' : null;
+      this.storageNotice = peerChanged ? 'Changes from another tab were reconciled with this tab. Review the pending list.' : null;
+      this.storageError = null;
     }
     catch (error) {
       this.storageError = error.message;

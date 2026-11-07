@@ -15,7 +15,7 @@ Keeping the complete observed draft also promotes older array-only drafts into
 recovery evidence on the next edit. Only after that append succeeds does the store
 reconcile the persisted snapshot and journal and write a compatibility snapshot.
 Changed raw snapshots are detected; normal peer changes are reconciled and
-reported through the existing storage warning.
+shown as an informational review notice.
 
 On restore, every snapshot and journal value passes the strict JSON parser,
 array checks and domain event codec. The existing compiled Bend merge combines

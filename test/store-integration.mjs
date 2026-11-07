@@ -287,7 +287,8 @@ await check('two tabs retain both branch drafts and reload their exact journal u
   const restored = new Store(repo); await restored.load();
   assert.deepEqual(pendingIds(restored), ['tab-A', 'tab-B']);
   assert.equal(journalEntries().length, 2);
-  assert.match(second.storageError, /another tab/);
+  assert.match(second.storageNotice, /another tab/);
+  assert.equal(second.storageError, null);
 });
 await check('a stale racing snapshot cannot erase already appended peer operations', async () => {
   const repo = withHistory(), first = new Store(repo), second = new Store(repo);

@@ -163,9 +163,11 @@ await checkAsync('pendingDescriptions says what is staged, in words', async () =
   );
   const d = s.pendingDescriptions;
   eq(d.length, 2);
-  ok(/→ Done$/.test(d[0].text), `should read as a move: ${d[0].text}`);
-  ok(d[0].text.includes(T1), 'and name the task');
-  ok(/note — shipped it$/.test(d[1].text), d[1].text);
+  const moved = d.find(row => row.type === 'task.status');
+  const noted = d.find(row => row.type === 'task.note');
+  ok(/→ Done$/.test(moved.text), `should read as a move: ${moved.text}`);
+  ok(moved.text.includes(T1), 'and name the task');
+  ok(/note — shipped it$/.test(noted.text), noted.text);
   ok(d.every((r) => r.ts && r.type), 'each row carries its instant and type for the UI');
 });
 
