@@ -11,7 +11,10 @@ immutable commit and checks bytes before writing. The wrapper checks them again
 before every invocation.
 
 Executed hosts: Windows x64, Node 25.8.1, Bun 1.3.10; Ubuntu WSL2 x86_64 with
-Bun 1.3.10 and Lean 4.34.0. The standard checker runs natively on Windows.
+Bun 1.3.10 and Lean 4.34.0. The single-file standard checker runs natively on
+Windows. **Full multi-module builds must use WSL**: this pin incorrectly resolves
+relative imports on native Windows, losing the drive and importing subdirectory.
+This was reproduced after the single-file smoke. Compiler source is unpatched.
 The current upstream kernel builder expects Unix executable names and is
 validated in WSL rather than assumed to support native Windows.
 
@@ -132,4 +135,19 @@ while its own source and caches remain anchored beside the wrapper. Agents in
 another worktree can invoke `node <toolchain-worktree>/scripts/bend.mjs PROOF.bend`
 from their own directory. Prefer relative input filenames in Windows because
 the pinned compiler's imported-path handling was not assumed portable for
-drive-qualified absolute inputs.
+drive-qualified absolute inputs. Full module graphs must use the WSL route.
+
+The real multi-module `toolchain/smoke/imported.bend` fixture both passes
+`--verdict` and compiles to a callable JavaScript export under WSL. The native
+smoke explicitly skips this unsupported route and records that limitation.
+For full project checks from a Linux/WSL checkout directory, use:
+
+```sh
+sh scripts/bend-linux.sh PROOF.bend --verdict
+sh scripts/bend-linux.sh bend/Core.bend -o .toolchain/core.mjs
+```
+
+For a sibling worktree before integration, use the absolute POSIX path of
+`scripts/bend-linux.sh` in the toolchain worktree, keeping the caller's current
+directory in the sibling. The helper anchors compiler integrity and caches to
+its own checkout but preserves that caller directory for imports.

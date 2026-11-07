@@ -26,6 +26,15 @@ const evidence = {
   open: bend(['toolchain/smoke/open.bend', ...proofArgs], 1, /SOME PROOFS FAIL|TODO/),
   termination: bend(['toolchain/smoke/nonterminating.bend', ...proofArgs], 1, /SOME PROOFS FAIL|recursive|termination/i),
 };
+if (process.platform === 'win32') {
+  evidence.imports = 'Not supported natively by this pin; use the validated WSL route';
+  console.warn('SKIP multi-module build on native Windows: pinned compiler path bug; use WSL');
+} else {
+  evidence.imports = bend(['toolchain/smoke/imported.bend', ...proofArgs], 0, /ALL PROOFS CHECK/);
+  bend(['toolchain/smoke/imported.bend', '-o', '.toolchain/imported.mjs'], 0, /(?:)/);
+  const { default: imported } = await import(pathToFileURL(resolve(root, '.toolchain/imported.mjs')).href);
+  assert.equal(imported.via_import(42), 42);
+}
 bend(['toolchain/smoke/bridge.bend', '-o', '.toolchain/bridge.mjs'], 0, /(?:)/);
 const { default: core } = await import(pathToFileURL(resolve(root, '.toolchain/bridge.mjs')).href);
 assert.equal(core.keep('Synthetic \u03bb \ud83d\ude80'), 'Synthetic \u03bb \ud83d\ude80');
