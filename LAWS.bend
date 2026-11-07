@@ -8,6 +8,7 @@ import ./proof/Count.bend as Count
 import ./proof/Unique.bend as Unique
 import ./proof/Sort.bend as Sort
 import ./proof/ChronologicalSort.bend as ChronologicalSort
+import ./proof/Canonical.bend as Canonical
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -932,3 +933,38 @@ law successful_merge_is_chronologically_ordered:
   for output: List<&2, T.DomainEvent>
   for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
   {Sort.ordered(~Core.event_le, output) == True{} : Bool}
+
+law unique_id_members_are_equal:
+  for +events: List<&2, T.DomainEvent>
+  for +a: T.DomainEvent
+  for +b: T.DomainEvent
+  for +sameId: {Core.event_id(a) == Core.event_id(b) : String}
+  for unique: {Unique.unique_ids(events) == True{} : Bool}
+  for present_a: {Core.exact_contains(events, a) == True{} : Bool}
+  for present_b: {Core.exact_contains(events, b) == True{} : Bool}
+  {a == b : T.DomainEvent}
+
+law inconsistent_event_union_has_no_successful_merge:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for +a: T.DomainEvent
+  for +b: T.DomainEvent
+  for sameId: {Core.event_id(a) == Core.event_id(b) : String}
+  for different: {a != b : T.DomainEvent}
+  for present_a: {Bool.or(Core.exact_contains(left, a), Core.exact_contains(right, a)) == True{} : Bool}
+  for present_b: {Bool.or(Core.exact_contains(left, b), Core.exact_contains(right, b)) == True{} : Bool}
+  for +output: List<&2, T.DomainEvent>
+  for +success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  Empty
+
+law inconsistent_event_union_returns_conflict:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for a: T.DomainEvent
+  for b: T.DomainEvent
+  for sameId: {Core.event_id(a) == Core.event_id(b) : String}
+  for different: {a != b : T.DomainEvent}
+  for present_a: {Bool.or(Core.exact_contains(left, a), Core.exact_contains(right, a)) == True{} : Bool}
+  for present_b: {Bool.or(Core.exact_contains(left, b), Core.exact_contains(right, b)) == True{} : Bool}
+  exs conflictId: String
+  {Core.merge(left, right) == T.EventConflict{conflictId} : T.MergeResult}

@@ -9,6 +9,7 @@ import ./proof/Count.bend as Count
 import ./proof/Unique.bend as Unique
 import ./proof/Sort.bend as Sort
 import ./proof/ChronologicalSort.bend as ChronologicalSort
+import ./proof/Canonical.bend as Canonical
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -1637,3 +1638,62 @@ def OrderedScan.scan(fuel: List<&2, T.DomainEvent>, +acc: List<&2, T.DomainEvent
 def Laws.successful_merge_is_chronologically_ordered(left, right, output, success):
   %success : Laws.SuccessfulOrdered(_)
   OrderedScan.scan(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), Nil{}, None{})
+
+def ConflictProof.same_head_a(+head: T.DomainEvent, +a: T.DomainEvent, +b: T.DomainEvent,
+  sameId: {Core.event_id(a) == Core.event_id(b) : String}, same_head: {Core.event_eq(head, a) == True{} : Bool}) -> {Core.event_id(b) == Core.event_id(head) : String}:
+  head_is_a = Laws.event_equality_sound(head, a, same_head)
+  Equal.sym(String, Core.event_id(head), Core.event_id(b),
+    Equal.trans(String, Core.event_id(head), Core.event_id(a), Core.event_id(b),
+      Equal.cong(T.DomainEvent, String, event => Core.event_id(event), head, a, head_is_a), sameId))
+
+def ConflictProof.same_head_b(+head: T.DomainEvent, +a: T.DomainEvent, +b: T.DomainEvent,
+  sameId: {Core.event_id(a) == Core.event_id(b) : String}, same_head: {Core.event_eq(head, b) == True{} : Bool}) -> {Core.event_id(a) == Core.event_id(head) : String}:
+  head_is_b = Laws.event_equality_sound(head, b, same_head)
+  Equal.trans(String, Core.event_id(a), Core.event_id(b), Core.event_id(head), sameId,
+    Equal.sym(String, Core.event_id(head), Core.event_id(b), Equal.cong(T.DomainEvent, String, event => Core.event_id(event), head, b, head_is_b)))
+
+def ConflictProof.unique_members_step(+head: T.DomainEvent, +tail: List<&2, T.DomainEvent>, +a: T.DomainEvent, +b: T.DomainEvent, atHead: Bool, btHead: Bool,
+  linkA: {Core.event_eq(head, a) == atHead : Bool}, linkB: {Core.event_eq(head, b) == btHead : Bool}, sameId: {Core.event_id(a) == Core.event_id(b) : String},
+  +unique: {Unique.unique_ids(head <> tail) == True{} : Bool}, presentA: {Core.exact_contains(head <> tail, a) == True{} : Bool}, presentB: {Core.exact_contains(head <> tail, b) == True{} : Bool},
+  continuation: {Unique.unique_ids(tail) == True{} : Bool} -> {Core.exact_contains(tail, a) == True{} : Bool} -> {Core.exact_contains(tail, b) == True{} : Bool} -> {a == b : T.DomainEvent}) -> {a == b : T.DomainEvent}:
+  match atHead btHead:
+    case True{} True{}:
+      Equal.trans(T.DomainEvent, a, head, b, Equal.sym(T.DomainEvent, head, a, Laws.event_equality_sound(head, a, linkA)), Laws.event_equality_sound(head, b, linkB))
+    case True{} False{}:
+      Empty.absurd({a == b : T.DomainEvent}, Canonical.absent_matching_tail(head, tail, b,
+        ConflictProof.same_head_a(head, a, b, sameId, linkA), Unique.unique_head_absent(head, tail, unique), presentB, linkB))
+    case False{} True{}:
+      Empty.absurd({a == b : T.DomainEvent}, Canonical.absent_matching_tail(head, tail, a,
+        ConflictProof.same_head_b(head, a, b, sameId, linkB), Unique.unique_head_absent(head, tail, unique), presentA, linkA))
+    case False{} False{}:
+      continuation(Unique.unique_tail(head, tail, unique), Canonical.member_tail(head, tail, a, linkA, presentA), Canonical.member_tail(head, tail, b, linkB, presentB))
+
+def Laws.unique_id_members_are_equal(events, a, b, sameId, unique, present_a, present_b):
+  match events:
+    case Nil{}:
+      Empty.absurd({a == b : T.DomainEvent}, Laws.false_is_not_true(present_a))
+    case +head <> +tail:
+      ConflictProof.unique_members_step(head, tail, a, b, Core.event_eq(head, a), Core.event_eq(head, b), {==}, {==}, sameId, unique, present_a, present_b,
+        unique_tail => member_a => member_b => Laws.unique_id_members_are_equal(tail, a, b, sameId, unique_tail, member_a, member_b))
+
+def Laws.inconsistent_event_union_has_no_successful_merge(left, right, a, b, sameId, different, present_a, present_b, output, success):
+  member_a = Equal.trans(Bool, Core.exact_contains(output, a), Bool.or(Core.exact_contains(left, a), Core.exact_contains(right, a)), True{},
+    Laws.successful_merge_has_exact_input_events(left, right, output, a, success), present_a)
+  member_b = Equal.trans(Bool, Core.exact_contains(output, b), Bool.or(Core.exact_contains(left, b), Core.exact_contains(right, b)), True{},
+    Laws.successful_merge_has_exact_input_events(left, right, output, b, success), present_b)
+  different(Laws.unique_id_members_are_equal(output, a, b, sameId, Unique.successful_merge_unique_bool(left, right, output, success), member_a, member_b))
+
+def ConflictProof.capture(result: T.MergeResult, +left: List<&2, T.DomainEvent>, +right: List<&2, T.DomainEvent>, +a: T.DomainEvent, +b: T.DomainEvent,
+  sameId: {Core.event_id(a) == Core.event_id(b) : String}, different: {a != b : T.DomainEvent},
+  present_a: {Bool.or(Core.exact_contains(left, a), Core.exact_contains(right, a)) == True{} : Bool}, present_b: {Bool.or(Core.exact_contains(left, b), Core.exact_contains(right, b)) == True{} : Bool},
+  link: {result == Core.merge(left, right) : T.MergeResult}) -> &conflictId: String -> {Core.merge(left, right) == T.EventConflict{conflictId} : T.MergeResult}:
+  match result:
+    case T.EventConflict{id}:
+      (id, Equal.sym(T.MergeResult, T.EventConflict{id}, Core.merge(left, right), link))
+    case T.Merged{output}:
+      Empty.absurd(&conflictId: String -> {Core.merge(left, right) == T.EventConflict{conflictId} : T.MergeResult},
+        Laws.inconsistent_event_union_has_no_successful_merge(left, right, a, b, sameId, different, present_a, present_b, output,
+          Equal.sym(T.MergeResult, T.Merged{output}, Core.merge(left, right), link)))
+
+def Laws.inconsistent_event_union_returns_conflict(left, right, a, b, sameId, different, present_a, present_b):
+  ConflictProof.capture(Core.merge(left, right), left, right, a, b, sameId, different, present_a, present_b, {==})
