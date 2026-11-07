@@ -6,7 +6,7 @@
  * scaffold is computed by bootstrap.scaffoldFiles(), which is pure, so the dialog can
  * list precisely what a confirmation will commit.
  */
-import { RepoState, scaffoldFiles, scaffold } from '../bootstrap.js';
+import { RepoState, prepareScaffold, scaffold } from '../bootstrap.js';
 import { loadTokens, isLocked } from '../vault.js';
 import { el, dialog, notice, toast } from './dom.js';
 
@@ -85,7 +85,33 @@ export async function offerScaffold(app, repo, state) {
   const isPublic = el('input', { type: 'radio', name: 'vis' });
   const examples = el('input', { type: 'checkbox', checked: true });
 
-  const preview = scaffoldFiles({ slug: repo.slug, appUrl: location.href.split('?')[0], withExamples: true });
+  const previewBody = el('div');
+  let preview = null;
+  let preparing = false;
+  let generation = 0;
+  const refreshPreview = async () => {
+    const ownGeneration = ++generation;
+    preparing = true;
+    preview = null;
+    previewBody.replaceChildren(notice('info', 'Preparing the exact setup preview...'));
+    try {
+      const value = await prepareScaffold({ repo, state, isPrivate: isPrivate.checked,
+        withExamples: examples.checked, appUrl: location.href.split('?')[0] });
+      if (generation !== ownGeneration) return;
+      preview = value;
+      previewBody.replaceChildren(
+        el('p', {}, 'Destination: ', el('code', { text: `${value.target} on ${value.branch}` })),
+        el('p', {}, 'Base revision: ', el('code', { text: value.expectedBase || 'new root commit' })),
+        el('pre', { class: 'commit-preview', text: value.message }),
+        ...value.files.map(file => el('details', {}, el('summary', { text: file.path }), el('pre', { class: 'commit-preview', text: file.text }))),
+        ...(value.retainedPaths.length ? [notice('info', `Existing files retained: ${value.retainedPaths.join(', ')}`)] : []),
+      );
+    } catch (error) {
+      if (generation === ownGeneration) previewBody.replaceChildren(notice('error', error.message));
+    } finally { if (generation === ownGeneration) preparing = false; }
+  };
+  for (const input of [isPrivate, isPublic, examples]) input.addEventListener('change', refreshPreview);
+  await refreshPreview();
 
   const body = el('div', {},
     el('p', {}, missing
@@ -102,7 +128,7 @@ export async function offerScaffold(app, repo, state) {
         el('span', {}, el('strong', { text: 'Include three example tasks' }), el('div', { class: 'hint', text: 'A quick way to see how the board works. Delete them whenever.' })))),
 
     el('div', { class: 'section-label', text: 'This will commit' }),
-    el('ul', { class: 'file-list' }, preview.files.map((f) => el('li', { text: f.path }))),
+    previewBody,
     notice('info', 'One commit, on your repo, only after you confirm. Nothing else on your account is touched.'),
   );
 
@@ -111,20 +137,15 @@ export async function offerScaffold(app, repo, state) {
     body,
     buttons: [
       { label: 'Not now', value: false },
-      { label: missing ? 'Create repo and commit' : 'Commit starter files', class: 'primary', value: true },
+      { label: missing ? 'Create repo and commit' : 'Commit starter files', class: 'primary', onClick: () => preparing || !preview ? undefined : preview },
     ],
   });
 
-  if (await done !== true) return false;
+  const approved = await done;
+  if (!approved) return false;
 
   try {
-    await scaffold({
-      repo,
-      state,
-      isPrivate: isPrivate.checked,
-      withExamples: examples.checked,
-      appUrl: location.href.split('?')[0],
-    });
+    await scaffold({ repo, plan: approved });
     toast('Repo set up.');
     return true;
   } catch (e) {

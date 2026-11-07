@@ -16,10 +16,14 @@
  */
 
 import {
-  makeEvent, newTaskId, todayISO, foldEvents, unionEvents, PATHS,
+  makeEvent, newTaskId, todayISO, localDate, foldEvents, unionEvents, PATHS,
   serialiseMonth, renderMonthMd, renderYearReadme, renderChangelogIndex,
   renderLogReadme, renderBoardMd, renderBoardSnapshot, renderManifest,
 } from './store.js';
+import { immutableJSON, canonicalJSON } from './codec.js';
+import publication from './generated/publication.mjs';
+
+const preparedPlans = new WeakMap();
 
 export const RepoState = Object.freeze({
   MISSING: 'missing',
@@ -34,7 +38,7 @@ export async function inspect(repo) {
 
   const info = await repo.info();
   if (!(await repo.hasCommits())) return { state: RepoState.EMPTY, info };
-
+  await repo.pinRevision();
   const manifest = await repo.getFile('data/manifest.json');
   return { state: manifest ? RepoState.READY : RepoState.UNSEEDED, info };
 }
@@ -130,7 +134,7 @@ export function scaffoldFiles({ slug, appUrl = 'https://github.com', withExample
   const stats = new Map([[month, {
     month,
     events: events.length,
-    days: new Set(events.map((e) => e.ts.slice(0, 10))).size,
+    days: new Set(events.map((e) => localDate(e.ts))).size,
     updated: new Date().toISOString(),
   }]]);
   const statList = [...stats.values()];
@@ -156,19 +160,36 @@ export function scaffoldFiles({ slug, appUrl = 'https://github.com', withExample
  * @param {object} opts.repo GitHubRepo instance
  * @param {'missing'|'empty'|'unseeded'} opts.state from inspect()
  */
-export async function scaffold({ repo, state, isPrivate = true, withExamples = true, appUrl }) {
-  if (state === RepoState.MISSING) {
-    await repo.createRepo({ private: isPrivate, description: 'Personal work log (data)' });
+export async function prepareScaffold({ repo, state, isPrivate = true, withExamples = true, appUrl }) {
+  if (![RepoState.MISSING, RepoState.EMPTY, RepoState.UNSEEDED].includes(state)) throw new Error('This repository does not need setup.');
+  if (typeof isPrivate !== 'boolean' || typeof withExamples !== 'boolean') throw new Error('Setup options must be boolean.');
+  let expectedBase = null;
+  const retainedPaths = [];
+  const candidate = scaffoldFiles({ slug: repo.slug, appUrl, withExamples });
+  const files = [];
+  if (state === RepoState.UNSEEDED) expectedBase = await repo.pinRevision();
+  const reader = Object.assign(Object.create(repo), { readRevision: expectedBase });
+  for (const file of candidate.files) {
+    const existing = state === RepoState.UNSEEDED ? await reader.getFile(file.path) : null;
+    if (existing) {
+      if (file.path !== 'README.md') throw new Error(`Setup found existing ${file.path}. Preserve and inspect the partial log before setup.`);
+      retainedPaths.push(file.path);
+    } else files.push(file);
   }
+  const plan = immutableJSON({ target: repo.slug, branch: repo.branch || 'main', state, isPrivate,
+    expectedBase, files, retainedPaths, deletions: [],
+    message: 'worklog: initialise data repo\n\nScaffolding created by the work log app.\n' });
+  preparedPlans.set(plan, repo);
+  return plan;
+}
 
-  const { files } = scaffoldFiles({ slug: repo.slug, appUrl, withExamples });
-  const message = `worklog: initialise data repo\n\nScaffolding created by the work log app.\n`;
-
-  // An empty or brand-new repo has no branch, so the first write must create one.
-  if (state === RepoState.MISSING || state === RepoState.EMPTY || !(await repo.hasCommits())) {
-    await repo.initialCommit(files, message);
-  } else {
-    await repo.commitFiles(files, message);
-  }
+export async function scaffold({ repo, plan }) {
+  if (!plan || preparedPlans.get(plan) !== repo) throw new Error('Approve an exact prepared setup plan first.');
+  const execution = { ...plan, target: repo.slug, branch: repo.branch || 'main' };
+  if (!publication.approved({ $: 'Nil' }, canonicalJSON(plan), canonicalJSON(execution))) throw new Error('Setup destination changed. Review a new preview.');
+  if (plan.state === RepoState.MISSING) await repo.createRepo({ private: plan.isPrivate, description: 'Personal work log (data)' });
+  if (plan.state === RepoState.MISSING || plan.state === RepoState.EMPTY) await repo.initialCommit(plan.files, plan.message);
+  else await repo.commitFiles(plan.files, plan.message, { expectedBase: plan.expectedBase, deletions: plan.deletions });
+  preparedPlans.delete(plan);
   return { seeded: true };
 }
