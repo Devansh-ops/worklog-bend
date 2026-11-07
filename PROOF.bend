@@ -17,6 +17,9 @@ def Laws.reminder_disabled_witness():
 def Laws.reminder_complete_day_witness():
   {==}
 
+def Laws.collision_refusal_witness():
+  {==}
+
 def Laws.word_order_reflexive(n, w):
   match n:
     case 0n:
@@ -999,3 +1002,457 @@ def ReportsProof.incomplete(result: T.MergeResult, tasks: List<&2, T.Task>, summ
 
 def Laws.reports_withhold_incomplete_state(tasks, summaries, reports, diagnostics, events, sendNotes, day, morning, includePlan):
   ReportsProof.incomplete(Core.merge(events, Nil{}), tasks, summaries, reports, diagnostics, sendNotes, day, morning, includePlan)
+
+# Exhaustive constructor reflection; no assumed equality oracle.
+def Laws.and_true_left(a, b, equality):
+  match a:
+    case False{}:
+      equality
+    case True{}:
+      {==}
+
+def Laws.status_equality_sound(a, b, equality):
+  match a b:
+    case T.SBacklog{} T.SBacklog{}:
+      {==}
+    case T.SBacklog{} T.STodo{}:
+      Empty.absurd({T.SBacklog{} == T.STodo{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBacklog{} T.SProgress{}:
+      Empty.absurd({T.SBacklog{} == T.SProgress{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBacklog{} T.SBlocked{}:
+      Empty.absurd({T.SBacklog{} == T.SBlocked{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBacklog{} T.SReview{}:
+      Empty.absurd({T.SBacklog{} == T.SReview{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBacklog{} T.SDone{}:
+      Empty.absurd({T.SBacklog{} == T.SDone{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.STodo{} T.SBacklog{}:
+      Empty.absurd({T.STodo{} == T.SBacklog{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.STodo{} T.STodo{}:
+      {==}
+    case T.STodo{} T.SProgress{}:
+      Empty.absurd({T.STodo{} == T.SProgress{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.STodo{} T.SBlocked{}:
+      Empty.absurd({T.STodo{} == T.SBlocked{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.STodo{} T.SReview{}:
+      Empty.absurd({T.STodo{} == T.SReview{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.STodo{} T.SDone{}:
+      Empty.absurd({T.STodo{} == T.SDone{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SProgress{} T.SBacklog{}:
+      Empty.absurd({T.SProgress{} == T.SBacklog{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SProgress{} T.STodo{}:
+      Empty.absurd({T.SProgress{} == T.STodo{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SProgress{} T.SProgress{}:
+      {==}
+    case T.SProgress{} T.SBlocked{}:
+      Empty.absurd({T.SProgress{} == T.SBlocked{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SProgress{} T.SReview{}:
+      Empty.absurd({T.SProgress{} == T.SReview{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SProgress{} T.SDone{}:
+      Empty.absurd({T.SProgress{} == T.SDone{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBlocked{} T.SBacklog{}:
+      Empty.absurd({T.SBlocked{} == T.SBacklog{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBlocked{} T.STodo{}:
+      Empty.absurd({T.SBlocked{} == T.STodo{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBlocked{} T.SProgress{}:
+      Empty.absurd({T.SBlocked{} == T.SProgress{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBlocked{} T.SBlocked{}:
+      {==}
+    case T.SBlocked{} T.SReview{}:
+      Empty.absurd({T.SBlocked{} == T.SReview{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SBlocked{} T.SDone{}:
+      Empty.absurd({T.SBlocked{} == T.SDone{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SReview{} T.SBacklog{}:
+      Empty.absurd({T.SReview{} == T.SBacklog{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SReview{} T.STodo{}:
+      Empty.absurd({T.SReview{} == T.STodo{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SReview{} T.SProgress{}:
+      Empty.absurd({T.SReview{} == T.SProgress{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SReview{} T.SBlocked{}:
+      Empty.absurd({T.SReview{} == T.SBlocked{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SReview{} T.SReview{}:
+      {==}
+    case T.SReview{} T.SDone{}:
+      Empty.absurd({T.SReview{} == T.SDone{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.SBacklog{}:
+      Empty.absurd({T.SDone{} == T.SBacklog{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.STodo{}:
+      Empty.absurd({T.SDone{} == T.STodo{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.SProgress{}:
+      Empty.absurd({T.SDone{} == T.SProgress{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.SBlocked{}:
+      Empty.absurd({T.SDone{} == T.SBlocked{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.SReview{}:
+      Empty.absurd({T.SDone{} == T.SReview{} : T.Status}, Laws.false_is_not_true(equality))
+    case T.SDone{} T.SDone{}:
+      {==}
+
+def Laws.priority_equality_sound(a, b, equality):
+  match a b:
+    case T.PLow{} T.PLow{}:
+      {==}
+    case T.PLow{} T.PNormal{}:
+      Empty.absurd({T.PLow{} == T.PNormal{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PLow{} T.PHigh{}:
+      Empty.absurd({T.PLow{} == T.PHigh{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PLow{} T.PUrgent{}:
+      Empty.absurd({T.PLow{} == T.PUrgent{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PNormal{} T.PLow{}:
+      Empty.absurd({T.PNormal{} == T.PLow{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PNormal{} T.PNormal{}:
+      {==}
+    case T.PNormal{} T.PHigh{}:
+      Empty.absurd({T.PNormal{} == T.PHigh{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PNormal{} T.PUrgent{}:
+      Empty.absurd({T.PNormal{} == T.PUrgent{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PHigh{} T.PLow{}:
+      Empty.absurd({T.PHigh{} == T.PLow{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PHigh{} T.PNormal{}:
+      Empty.absurd({T.PHigh{} == T.PNormal{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PHigh{} T.PHigh{}:
+      {==}
+    case T.PHigh{} T.PUrgent{}:
+      Empty.absurd({T.PHigh{} == T.PUrgent{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PUrgent{} T.PLow{}:
+      Empty.absurd({T.PUrgent{} == T.PLow{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PUrgent{} T.PNormal{}:
+      Empty.absurd({T.PUrgent{} == T.PNormal{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PUrgent{} T.PHigh{}:
+      Empty.absurd({T.PUrgent{} == T.PHigh{} : T.Priority}, Laws.false_is_not_true(equality))
+    case T.PUrgent{} T.PUrgent{}:
+      {==}
+
+def Laws.bool_equality_sound(a, b, equality):
+  Laws.bool_order_equality_sound(a, b, Laws.cmp_is_eq_sound(Bool.cmp(a, b), equality))
+
+def Laws.strings_equality_sound(a, b, equality):
+  match a b:
+    case Nil{} Nil{}:
+      {==}
+    case Nil{} h <> t:
+      Empty.absurd({Nil{} == h <> t : List<&2, String>}, Laws.false_is_not_true(equality))
+    case h <> t Nil{}:
+      Empty.absurd({h <> t == Nil{} : List<&2, String>}, Laws.false_is_not_true(equality))
+    case +ah <> +at +bh <> +bt:
+      head = Laws.string_equality_sound(ah, bh, Laws.and_true_left(String.eq(ah, bh), Core.strings_eq(at, bt), equality))
+      tail = Laws.strings_equality_sound(at, bt, Laws.and_true_right(String.eq(ah, bh), Core.strings_eq(at, bt), equality))
+      %head : {ah <> at == _ <> bt : List<&2, String>}
+      %tail : {ah <> at == ah <> _ : List<&2, String>}
+      {==}
+
+def Laws.optional_string_equality_sound(a, b, equality):
+  match a b:
+    case None{} None{}:
+      {==}
+    case None{} Some{y}:
+      Empty.absurd({None{} == Some{y} : Maybe<&2, String>}, Laws.false_is_not_true(equality))
+    case Some{x} None{}:
+      Empty.absurd({Some{x} == None{} : Maybe<&2, String>}, Laws.false_is_not_true(equality))
+    case Some{x} Some{y}:
+      Equal.cong(String, Maybe<&2, String>, value => Some{value}, x, y, Laws.string_equality_sound(x, y, equality))
+
+def Laws.optional_status_equality_sound(a, b, equality):
+  match a b:
+    case None{} None{}:
+      {==}
+    case None{} Some{y}:
+      Empty.absurd({None{} == Some{y} : Maybe<&2, T.Status>}, Laws.false_is_not_true(equality))
+    case Some{x} None{}:
+      Empty.absurd({Some{x} == None{} : Maybe<&2, T.Status>}, Laws.false_is_not_true(equality))
+    case Some{x} Some{y}:
+      Equal.cong(T.Status, Maybe<&2, T.Status>, value => Some{value}, x, y, Laws.status_equality_sound(x, y, equality))
+
+def Laws.optional_priority_equality_sound(a, b, equality):
+  match a b:
+    case None{} None{}:
+      {==}
+    case None{} Some{y}:
+      Empty.absurd({None{} == Some{y} : Maybe<&2, T.Priority>}, Laws.false_is_not_true(equality))
+    case Some{x} None{}:
+      Empty.absurd({Some{x} == None{} : Maybe<&2, T.Priority>}, Laws.false_is_not_true(equality))
+    case Some{x} Some{y}:
+      Equal.cong(T.Priority, Maybe<&2, T.Priority>, value => Some{value}, x, y, Laws.priority_equality_sound(x, y, equality))
+
+def Laws.optional_strings_equality_sound(a, b, equality):
+  match a b:
+    case None{} None{}:
+      {==}
+    case None{} Some{y}:
+      Empty.absurd({None{} == Some{y} : Maybe<&2, List<&2, String>>}, Laws.false_is_not_true(equality))
+    case Some{x} None{}:
+      Empty.absurd({Some{x} == None{} : Maybe<&2, List<&2, String>>}, Laws.false_is_not_true(equality))
+    case Some{x} Some{y}:
+      Equal.cong(List<&2, String>, Maybe<&2, List<&2, String>>, value => Some{value}, x, y, Laws.strings_equality_sound(x, y, equality))
+
+def Laws.optional_bool_equality_sound(a, b, equality):
+  match a b:
+    case None{} None{}:
+      {==}
+    case None{} Some{y}:
+      Empty.absurd({None{} == Some{y} : Maybe<&2, Bool>}, Laws.false_is_not_true(equality))
+    case Some{x} None{}:
+      Empty.absurd({Some{x} == None{} : Maybe<&2, Bool>}, Laws.false_is_not_true(equality))
+    case Some{x} Some{y}:
+      Equal.cong(Bool, Maybe<&2, Bool>, value => Some{value}, x, y, Laws.bool_equality_sound(x, y, equality))
+
+def Laws.patch_equality_sound(a, b, equality):
+  match a b:
+    case T.Patch{+a0, +a1, +a2, +a3, +a4} T.Patch{+b0, +b1, +b2, +b3, +b4}:
+      comparison0 = Laws.and_true_left(Core.optional_string_eq(a0, b0), Bool.and(Core.optional_status_eq(a1, b1), Bool.and(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4)))), equality)
+      +remaining1 = Laws.and_true_right(Core.optional_string_eq(a0, b0), Bool.and(Core.optional_status_eq(a1, b1), Bool.and(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4)))), equality)
+      field0 = Laws.optional_string_equality_sound(a0, b0, comparison0)
+      comparison1 = Laws.and_true_left(Core.optional_status_eq(a1, b1), Bool.and(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4))), remaining1)
+      +remaining2 = Laws.and_true_right(Core.optional_status_eq(a1, b1), Bool.and(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4))), remaining1)
+      field1 = Laws.optional_status_equality_sound(a1, b1, comparison1)
+      comparison2 = Laws.and_true_left(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4)), remaining2)
+      +remaining3 = Laws.and_true_right(Core.optional_priority_eq(a2, b2), Bool.and(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4)), remaining2)
+      field2 = Laws.optional_priority_equality_sound(a2, b2, comparison2)
+      comparison3 = Laws.and_true_left(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4), remaining3)
+      +remaining4 = Laws.and_true_right(Core.optional_strings_eq(a3, b3), Core.optional_bool_eq(a4, b4), remaining3)
+      field3 = Laws.optional_strings_equality_sound(a3, b3, comparison3)
+      field4 = Laws.optional_bool_equality_sound(a4, b4, remaining4)
+      %field0 : {T.Patch{a0, a1, a2, a3, a4} == T.Patch{_, b1, b2, b3, b4} : T.Patch}
+      %field1 : {T.Patch{a0, a1, a2, a3, a4} == T.Patch{a0, _, b2, b3, b4} : T.Patch}
+      %field2 : {T.Patch{a0, a1, a2, a3, a4} == T.Patch{a0, a1, _, b3, b4} : T.Patch}
+      %field3 : {T.Patch{a0, a1, a2, a3, a4} == T.Patch{a0, a1, a2, _, b4} : T.Patch}
+      %field4 : {T.Patch{a0, a1, a2, a3, a4} == T.Patch{a0, a1, a2, a3, _} : T.Patch}
+      {==}
+
+def Laws.payload_equality_sound(a, b, equality):
+  match a b:
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Bool.and(String.eq(a1, b1), Bool.and(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5))))), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Bool.and(String.eq(a1, b1), Bool.and(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5))))), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      comparison1 = Laws.and_true_left(String.eq(a1, b1), Bool.and(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5)))), remaining1)
+      +remaining2 = Laws.and_true_right(String.eq(a1, b1), Bool.and(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5)))), remaining1)
+      field1 = Laws.string_equality_sound(a1, b1, comparison1)
+      comparison2 = Laws.and_true_left(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5))), remaining2)
+      +remaining3 = Laws.and_true_right(Core.status_eq(a2, b2), Bool.and(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5))), remaining2)
+      field2 = Laws.status_equality_sound(a2, b2, comparison2)
+      comparison3 = Laws.and_true_left(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5)), remaining3)
+      +remaining4 = Laws.and_true_right(Core.priority_eq(a3, b3), Bool.and(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5)), remaining3)
+      field3 = Laws.priority_equality_sound(a3, b3, comparison3)
+      comparison4 = Laws.and_true_left(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5), remaining4)
+      +remaining5 = Laws.and_true_right(Core.strings_eq(a4, b4), Core.bool_eq(a5, b5), remaining4)
+      field4 = Laws.strings_equality_sound(a4, b4, comparison4)
+      field5 = Laws.bool_equality_sound(a5, b5, remaining5)
+      %field0 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{_, b1, b2, b3, b4, b5} : T.Payload}
+      %field1 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{a0, _, b2, b3, b4, b5} : T.Payload}
+      %field2 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{a0, a1, _, b3, b4, b5} : T.Payload}
+      %field3 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{a0, a1, a2, _, b4, b5} : T.Payload}
+      %field4 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{a0, a1, a2, a3, _, b5} : T.Payload}
+      %field5 : {T.Created{a0, a1, a2, a3, a4, a5} == T.Created{a0, a1, a2, a3, a4, _} : T.Payload}
+      {==}
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.Noted{+b0, +b1}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.Edited{+b0, +b1}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.Deleted{+b0}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Created{+a0, +a1, +a2, +a3, +a4, +a5} T.Opaque{+b0}:
+      Empty.absurd({T.Created{a0, a1, a2, a3, a4, a5} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.StatusChanged{+b0, +b1}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Core.status_eq(a1, b1), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Core.status_eq(a1, b1), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      field1 = Laws.status_equality_sound(a1, b1, remaining1)
+      %field0 : {T.StatusChanged{a0, a1} == T.StatusChanged{_, b1} : T.Payload}
+      %field1 : {T.StatusChanged{a0, a1} == T.StatusChanged{a0, _} : T.Payload}
+      {==}
+    case T.StatusChanged{+a0, +a1} T.Noted{+b0, +b1}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.Edited{+b0, +b1}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.Deleted{+b0}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StatusChanged{+a0, +a1} T.Opaque{+b0}:
+      Empty.absurd({T.StatusChanged{a0, a1} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.Noted{a0, a1} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.Noted{a0, a1} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.Noted{+b0, +b1}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), String.eq(a1, b1), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), String.eq(a1, b1), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      field1 = Laws.string_equality_sound(a1, b1, remaining1)
+      %field0 : {T.Noted{a0, a1} == T.Noted{_, b1} : T.Payload}
+      %field1 : {T.Noted{a0, a1} == T.Noted{a0, _} : T.Payload}
+      {==}
+    case T.Noted{+a0, +a1} T.Edited{+b0, +b1}:
+      Empty.absurd({T.Noted{a0, a1} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.Deleted{+b0}:
+      Empty.absurd({T.Noted{a0, a1} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.Noted{a0, a1} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.Noted{a0, a1} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Noted{+a0, +a1} T.Opaque{+b0}:
+      Empty.absurd({T.Noted{a0, a1} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.Edited{a0, a1} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.Edited{a0, a1} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.Noted{+b0, +b1}:
+      Empty.absurd({T.Edited{a0, a1} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.Edited{+b0, +b1}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Core.patch_eq(a1, b1), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Core.patch_eq(a1, b1), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      field1 = Laws.patch_equality_sound(a1, b1, remaining1)
+      %field0 : {T.Edited{a0, a1} == T.Edited{_, b1} : T.Payload}
+      %field1 : {T.Edited{a0, a1} == T.Edited{a0, _} : T.Payload}
+      {==}
+    case T.Edited{+a0, +a1} T.Deleted{+b0}:
+      Empty.absurd({T.Edited{a0, a1} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.Edited{a0, a1} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.Edited{a0, a1} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Edited{+a0, +a1} T.Opaque{+b0}:
+      Empty.absurd({T.Edited{a0, a1} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.Deleted{a0} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.Deleted{a0} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.Noted{+b0, +b1}:
+      Empty.absurd({T.Deleted{a0} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.Edited{+b0, +b1}:
+      Empty.absurd({T.Deleted{a0} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.Deleted{+b0}:
+      field0 = Laws.string_equality_sound(a0, b0, equality)
+      %field0 : {T.Deleted{a0} == T.Deleted{_} : T.Payload}
+      {==}
+    case T.Deleted{+a0} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.Deleted{a0} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.Deleted{a0} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Deleted{+a0} T.Opaque{+b0}:
+      Empty.absurd({T.Deleted{a0} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.Noted{+b0, +b1}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.Edited{+b0, +b1}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.Deleted{+b0}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.SummarySet{+b0, +b1, +b2}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Bool.and(String.eq(a1, b1), String.eq(a2, b2)), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Bool.and(String.eq(a1, b1), String.eq(a2, b2)), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      comparison1 = Laws.and_true_left(String.eq(a1, b1), String.eq(a2, b2), remaining1)
+      +remaining2 = Laws.and_true_right(String.eq(a1, b1), String.eq(a2, b2), remaining1)
+      field1 = Laws.string_equality_sound(a1, b1, comparison1)
+      field2 = Laws.string_equality_sound(a2, b2, remaining2)
+      %field0 : {T.SummarySet{a0, a1, a2} == T.SummarySet{_, b1, b2} : T.Payload}
+      %field1 : {T.SummarySet{a0, a1, a2} == T.SummarySet{a0, _, b2} : T.Payload}
+      %field2 : {T.SummarySet{a0, a1, a2} == T.SummarySet{a0, a1, _} : T.Payload}
+      {==}
+    case T.SummarySet{+a0, +a1, +a2} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.SummarySet{+a0, +a1, +a2} T.Opaque{+b0}:
+      Empty.absurd({T.SummarySet{a0, a1, a2} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.Noted{+b0, +b1}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.Edited{+b0, +b1}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.Deleted{+b0}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.StandupSet{+a0, +a1, +a2} T.StandupSet{+b0, +b1, +b2}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Bool.and(String.eq(a1, b1), String.eq(a2, b2)), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Bool.and(String.eq(a1, b1), String.eq(a2, b2)), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      comparison1 = Laws.and_true_left(String.eq(a1, b1), String.eq(a2, b2), remaining1)
+      +remaining2 = Laws.and_true_right(String.eq(a1, b1), String.eq(a2, b2), remaining1)
+      field1 = Laws.string_equality_sound(a1, b1, comparison1)
+      field2 = Laws.string_equality_sound(a2, b2, remaining2)
+      %field0 : {T.StandupSet{a0, a1, a2} == T.StandupSet{_, b1, b2} : T.Payload}
+      %field1 : {T.StandupSet{a0, a1, a2} == T.StandupSet{a0, _, b2} : T.Payload}
+      %field2 : {T.StandupSet{a0, a1, a2} == T.StandupSet{a0, a1, _} : T.Payload}
+      {==}
+    case T.StandupSet{+a0, +a1, +a2} T.Opaque{+b0}:
+      Empty.absurd({T.StandupSet{a0, a1, a2} == T.Opaque{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.Created{+b0, +b1, +b2, +b3, +b4, +b5}:
+      Empty.absurd({T.Opaque{a0} == T.Created{b0, b1, b2, b3, b4, b5} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.StatusChanged{+b0, +b1}:
+      Empty.absurd({T.Opaque{a0} == T.StatusChanged{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.Noted{+b0, +b1}:
+      Empty.absurd({T.Opaque{a0} == T.Noted{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.Edited{+b0, +b1}:
+      Empty.absurd({T.Opaque{a0} == T.Edited{b0, b1} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.Deleted{+b0}:
+      Empty.absurd({T.Opaque{a0} == T.Deleted{b0} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.SummarySet{+b0, +b1, +b2}:
+      Empty.absurd({T.Opaque{a0} == T.SummarySet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.StandupSet{+b0, +b1, +b2}:
+      Empty.absurd({T.Opaque{a0} == T.StandupSet{b0, b1, b2} : T.Payload}, Laws.false_is_not_true(equality))
+    case T.Opaque{+a0} T.Opaque{+b0}:
+      field0 = Laws.string_equality_sound(a0, b0, equality)
+      %field0 : {T.Opaque{a0} == T.Opaque{_} : T.Payload}
+      {==}
+
+def Laws.event_equality_sound(a, b, equality):
+  match a b:
+    case T.Ev{+a0, +a1, +a2, +a3, +a4} T.Ev{+b0, +b1, +b2, +b3, +b4}:
+      comparison0 = Laws.and_true_left(String.eq(a0, b0), Bool.and(String.eq(a1, b1), Bool.and(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4)))), equality)
+      +remaining1 = Laws.and_true_right(String.eq(a0, b0), Bool.and(String.eq(a1, b1), Bool.and(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4)))), equality)
+      field0 = Laws.string_equality_sound(a0, b0, comparison0)
+      comparison1 = Laws.and_true_left(String.eq(a1, b1), Bool.and(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4))), remaining1)
+      +remaining2 = Laws.and_true_right(String.eq(a1, b1), Bool.and(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4))), remaining1)
+      field1 = Laws.string_equality_sound(a1, b1, comparison1)
+      comparison2 = Laws.and_true_left(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4)), remaining2)
+      +remaining3 = Laws.and_true_right(String.eq(a2, b2), Bool.and(Core.payload_eq(a3, b3), String.eq(a4, b4)), remaining2)
+      field2 = Laws.string_equality_sound(a2, b2, comparison2)
+      comparison3 = Laws.and_true_left(Core.payload_eq(a3, b3), String.eq(a4, b4), remaining3)
+      +remaining4 = Laws.and_true_right(Core.payload_eq(a3, b3), String.eq(a4, b4), remaining3)
+      field3 = Laws.payload_equality_sound(a3, b3, comparison3)
+      field4 = Laws.string_equality_sound(a4, b4, remaining4)
+      %field0 : {T.Ev{a0, a1, a2, a3, a4} == T.Ev{_, b1, b2, b3, b4} : T.DomainEvent}
+      %field1 : {T.Ev{a0, a1, a2, a3, a4} == T.Ev{a0, _, b2, b3, b4} : T.DomainEvent}
+      %field2 : {T.Ev{a0, a1, a2, a3, a4} == T.Ev{a0, a1, _, b3, b4} : T.DomainEvent}
+      %field3 : {T.Ev{a0, a1, a2, a3, a4} == T.Ev{a0, a1, a2, _, b4} : T.DomainEvent}
+      %field4 : {T.Ev{a0, a1, a2, a3, a4} == T.Ev{a0, a1, a2, a3, _} : T.DomainEvent}
+      {==}
+
+def Laws.string_propositional_equality_detected(a, b, equality):
+  Equal.trans(Bool, String.eq(a, b), String.eq(b, b), True{},
+    Equal.cong(String, Bool, left => String.eq(left, b), a, b, equality), Laws.string_equality_reflexive(b))
+
+def Laws.event_inequality_is_detected(a, b, different):
+  Laws.bool_not_true_is_false(Core.event_eq(a, b),
+    same => different(Laws.event_equality_sound(a, b, same)))
+
+def Laws.adjacent_content_conflict_is_rejected(event, previous, rest, acc, sameId, different):
+  same_flag = Laws.string_propositional_equality_detected(Core.event_id(event), Core.event_id(previous), sameId)
+  different_flag = Laws.event_inequality_is_detected(event, previous, different)
+  condition = Laws.true_and(String.eq(Core.event_id(event), Core.event_id(previous)), Bool.not(Core.event_eq(event, previous)), same_flag,
+    Equal.cong(Bool, Bool, same => Bool.not(same), Core.event_eq(event, previous), False{}, different_flag))
+  Equal.cong(Bool, T.MergeResult,
+    conflict => Bool.pick(T.MergeResult, conflict, T.EventConflict{Core.event_id(event)},
+      Core.scan_ids(rest, Core.unique_put(event, acc, String.eq(Core.event_id(event), Core.event_id(previous))), Some{event})),
+    Bool.and(String.eq(Core.event_id(event), Core.event_id(previous)), Bool.not(Core.event_eq(event, previous))), True{}, condition)
+
+def Laws.inconsistent_events_exist():
+  (Laws.collision_a(), (Laws.collision_b(), ({==},
+    same => Laws.false_is_not_true(Equal.cong(T.DomainEvent, Bool, value => Core.event_eq(value, Laws.collision_b()), Laws.collision_a(), Laws.collision_b(), same)))))

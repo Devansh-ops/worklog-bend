@@ -76,6 +76,13 @@ const mutations = [
     replacement: 'case Some{item} _:',
     failure: /ReportsProof.ineligible_item|reports_omit_private_head|reports_omit_deleted_head/,
   },
+  {
+    name: 'conflicting event content accepted',
+    file: 'Core.bend',
+    source: 'Bool.and(same, Bool.not(event_eq(h, p)))',
+    replacement: 'False{}',
+    failure: /collision_refusal_witness/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {

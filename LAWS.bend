@@ -658,3 +658,117 @@ law reports_withhold_incomplete_state:
   for morning: Bool
   for includePlan: Bool
   {Reports.report_items(T.State{tasks, summaries, reports, diagnostics, False{}}, events, sendNotes, day, morning, includePlan) == Nil{} : List<&2, Reports.ReportItem>}
+
+# Equality reflection for complete modeled event values.
+law and_true_left:
+  for a: Bool
+  for b: Bool
+  for equality: {Bool.and(a, b) == True{} : Bool}
+  {a == True{} : Bool}
+
+law status_equality_sound:
+  for a: T.Status
+  for b: T.Status
+  for equality: {Core.status_eq(a, b) == True{} : Bool}
+  {a == b : T.Status}
+
+law priority_equality_sound:
+  for a: T.Priority
+  for b: T.Priority
+  for equality: {Core.priority_eq(a, b) == True{} : Bool}
+  {a == b : T.Priority}
+
+law bool_equality_sound:
+  for +a: Bool
+  for +b: Bool
+  for equality: {Core.bool_eq(a, b) == True{} : Bool}
+  {a == b : Bool}
+
+law strings_equality_sound:
+  for a: List<&2, String>
+  for b: List<&2, String>
+  for +equality: {Core.strings_eq(a, b) == True{} : Bool}
+  {a == b : List<&2, String>}
+
+law optional_string_equality_sound:
+  for a: Maybe<&2, String>
+  for b: Maybe<&2, String>
+  for equality: {Core.optional_string_eq(a, b) == True{} : Bool}
+  {a == b : Maybe<&2, String>}
+
+law optional_status_equality_sound:
+  for a: Maybe<&2, T.Status>
+  for b: Maybe<&2, T.Status>
+  for equality: {Core.optional_status_eq(a, b) == True{} : Bool}
+  {a == b : Maybe<&2, T.Status>}
+
+law optional_priority_equality_sound:
+  for a: Maybe<&2, T.Priority>
+  for b: Maybe<&2, T.Priority>
+  for equality: {Core.optional_priority_eq(a, b) == True{} : Bool}
+  {a == b : Maybe<&2, T.Priority>}
+
+law optional_strings_equality_sound:
+  for a: Maybe<&2, List<&2, String>>
+  for b: Maybe<&2, List<&2, String>>
+  for equality: {Core.optional_strings_eq(a, b) == True{} : Bool}
+  {a == b : Maybe<&2, List<&2, String>>}
+
+law optional_bool_equality_sound:
+  for a: Maybe<&2, Bool>
+  for b: Maybe<&2, Bool>
+  for equality: {Core.optional_bool_eq(a, b) == True{} : Bool}
+  {a == b : Maybe<&2, Bool>}
+
+law patch_equality_sound:
+  for a: T.Patch
+  for b: T.Patch
+  for +equality: {Core.patch_eq(a, b) == True{} : Bool}
+  {a == b : T.Patch}
+
+law payload_equality_sound:
+  for a: T.Payload
+  for b: T.Payload
+  for +equality: {Core.payload_eq(a, b) == True{} : Bool}
+  {a == b : T.Payload}
+
+law event_equality_sound:
+  for a: T.DomainEvent
+  for b: T.DomainEvent
+  for +equality: {Core.event_eq(a, b) == True{} : Bool}
+  {a == b : T.DomainEvent}
+
+law string_propositional_equality_detected:
+  for +a: String
+  for +b: String
+  for equality: {a == b : String}
+  {String.eq(a, b) == True{} : Bool}
+
+law event_inequality_is_detected:
+  for +a: T.DomainEvent
+  for +b: T.DomainEvent
+  for different: {a != b : T.DomainEvent}
+  {Core.event_eq(a, b) == False{} : Bool}
+
+law adjacent_content_conflict_is_rejected:
+  for +event: T.DomainEvent
+  for +previous: T.DomainEvent
+  for +rest: List<&2, T.DomainEvent>
+  for +acc: List<&2, T.DomainEvent>
+  for sameId: {Core.event_id(event) == Core.event_id(previous) : String}
+  for different: {event != previous : T.DomainEvent}
+  {Core.scan_ids(event <> rest, acc, Some{previous}) == T.EventConflict{Core.event_id(event)} : T.MergeResult}
+
+def collision_a() -> T.DomainEvent:
+  T.Ev{"e-collision", "2026-11-08T00:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "A"}, "{\"id\":\"e-collision\",\"taskId\":\"T-aaa111\",\"text\":\"A\",\"ts\":\"2026-11-08T00:00:00.000Z\",\"type\":\"task.note\"}"}
+
+def collision_b() -> T.DomainEvent:
+  T.Ev{"e-collision", "2026-11-08T00:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "B"}, "{\"id\":\"e-collision\",\"taskId\":\"T-aaa111\",\"text\":\"B\",\"ts\":\"2026-11-08T00:00:00.000Z\",\"type\":\"task.note\"}"}
+
+law inconsistent_events_exist:
+  exs a: T.DomainEvent
+  exs b: T.DomainEvent
+  {Core.event_id(a) == Core.event_id(b) : String} & {a != b : T.DomainEvent}
+
+law collision_refusal_witness:
+  {Core.scan_ids([collision_b()], [collision_a()], Some{collision_a()}) == T.EventConflict{"e-collision"} : T.MergeResult}
