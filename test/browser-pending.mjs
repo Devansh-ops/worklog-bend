@@ -56,7 +56,7 @@ try {
     }, clear);
     return page;
   }
-  const first = await tab(true), second = await tab();
+  let first = await tab(true), second = await tab();
   // Both real tabs hold the same old empty view before either writes storage.
   await Promise.all([
     first.evaluate(() => store.stage(draft('draft-a')) && true),
@@ -65,12 +65,24 @@ try {
   let restored = await tab();
   assert.deepEqual(await restored.evaluate(() => store.pending.map(event => event.id).sort()), ['draft-a', 'draft-b']);
   await restored.close();
+  // Separate the simultaneous-write case from observed-only discard. A tab
+  // which already reconciled both drafts is allowed to discard both.
+  await first.close(); await second.close();
+  first = await tab(true); second = await tab();
+  await first.evaluate(() => { store.stage(draft('draft-a')); });
+  await second.evaluate(() => { store.stage(draft('draft-b')); });
   await first.evaluate(() => store.discardPending());
   restored = await tab();
   assert.deepEqual(await restored.evaluate(() => store.pending.map(event => event.id)), ['draft-b'], 'Discard must not erase an unseen peer draft');
   await restored.close();
-  await first.evaluate(() => store.stage(draft('draft-c')));
-  await second.evaluate(async () => { const plan = await store.preparePublish(); await store.push(plan); });
+  const approvedIds = await second.evaluate(async () => {
+    window.store = new Store(makeRepo()); await store.load();
+    window.approved = await store.preparePublish();
+    return approved.pending.map(event => event.id);
+  });
+  assert.deepEqual(approvedIds, ['draft-b']);
+  await first.evaluate(() => { store.stage(draft('draft-c')); });
+  await second.evaluate(async () => { await store.push(approved); });
   await first.close(); await second.close();
   restored = await tab();
   assert.deepEqual(await restored.evaluate(() => store.pending.map(event => event.id)), ['draft-c'], 'Approval acknowledgement must not erase unseen peer edits');
