@@ -23,10 +23,9 @@
  *    you click, in private repos too, so browsing data/log/2026/ shows a readable
  *    year with no Action, no build step and nothing installed.
  *
- * Loading is bounded the same way. data/board.json carries a `through` marker naming
- * the last event folded into it, which makes it a checkpoint: state = snapshot +
- * events after `through`. So a boot reads the manifest, the snapshot and the last few
- * months -- not every month ever recorded. Older months load on demand (loadYear).
+ * Schema 1/2 board snapshots cannot establish event coverage. Boot discovers every
+ * physical source using the pinned Git tree, verifies raw-body cache hashes, and
+ * replays canonical history. Unchanged warm loads reuse verified cached bodies.
  */
 
 import { ConflictError } from './github.js';
@@ -691,9 +690,8 @@ export class Store {
   }
 
   /**
-   * Current view of the world = the checkpoint, plus every event after it that we
-   * have (published or staged). Events at or before the checkpoint are dropped
-   * because they are already folded into it.
+   * Current view of the world is authoritative canonical replay. Unverified
+   * snapshot markers never suppress late events or deletion provenance.
    */
   get state() {
     if (this._derived?.remote !== this.remoteEvents || this._derived?.pending !== this.pending) {
@@ -712,9 +710,8 @@ export class Store {
   /* --- reading --- */
 
   /**
-   * Read enough to show the board. With a checkpoint that is the manifest, the
-   * snapshot and the last few months; without one it falls back to reading
-   * everything, which is what a v1 repo needs on its first load.
+   * Pin and verify all physical sources before showing authoritative state.
+   * Only verified unchanged raw bodies may bypass network reads.
    */
   async load({ recent = RECENT_MONTHS } = {}) {
     this.authoritative = false;
@@ -947,8 +944,8 @@ export class Store {
 
 Months move into per-year directories with a rendered page beside each one, so this
 repo reads as markdown on GitHub with nothing installed and no Action. CHANGELOG.md
-becomes an index, and data/board.json becomes a checkpoint so opening the app no
-longer reads every month ever written.
+becomes an index, and data/board.json remains a display cache. Authoritative
+replay uses verified source bodies rather than trusting snapshot coverage.
 
 ${s(months.length, 'month')} rewritten, ${s(deletions.length, 'old file')} removed, ${s(merged.length, 'event')} preserved unchanged.
 
@@ -964,9 +961,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
    */
   async migrate(approvedPlan) {
     const plan = this._approvedPlan(approvedPlan);
-    const result = await this.repo.commitFiles(plan.files, plan.message, { deletions: plan.deletions, expectedBase: plan.base });
-    await this.load();
-    return result;
+    return this._executeApproved(plan);
   }
 
   previewCommit() {
@@ -1020,9 +1015,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   /**
    * Publish staged events as a single commit. Call only after the user confirms.
    *
-   * On a conflict (someone else pushed meanwhile) the remote is re-read, its events
-   * unioned with ours, and the commit rebuilt — so a race merges instead of
-   * clobbering. Retried a few times before giving up.
+   * A conflict reloads authoritative sources while retaining pending work. The
+   * caller must present a new exact preview before another publication attempt.
    */
   async preparePublish() {
     if (!this.loaded) await this.load();
@@ -1033,7 +1027,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   }
 
   async push(approvedPlan) {
-    const plan = this._approvedPlan(approvedPlan);
+    return this._executeApproved(this._approvedPlan(approvedPlan));
+  }
+
+  async _executeApproved(plan) {
     let result;
     try {
       result = await this.repo.commitFiles(plan.files, plan.message, { deletions: plan.deletions, expectedBase: plan.base });

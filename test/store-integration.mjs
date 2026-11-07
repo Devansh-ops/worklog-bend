@@ -123,6 +123,24 @@ await check('legacy/current files reconcile and unknown month metadata survives 
   await store.migrate(plan);
   assert.equal(repo.files.has(PATHS.legacyMonth('2026-11')), false);
 });
+await check('successful migration acknowledges only its approval and reports refresh failure as published', async () => {
+  const repo = new FakeRepo([
+    [PATHS.manifest, { schema: 1, months: ['2026-11'] }],
+    [PATHS.legacyMonth('2026-11'), { month: '2026-11', events: [create] }],
+  ]);
+  const store = new Store(repo); await store.load(); store.stage(note);
+  const plan = store.migrationCommit();
+  const later = event('later', 'task.note', { taskId: create.taskId, text: 'PENDING_AFTER_APPROVAL' }, '2026-11-07T11:00:00.000Z');
+  repo.duringCommit = () => store.stage(later);
+  store.load = async () => { throw new Error('synthetic refresh failure'); };
+  const result = await store.migrate(plan);
+  assert.equal(repo.writes.length, 1);
+  assert.match(result.warning, /Published successfully.*refresh failed/);
+  assert.deepEqual(store.pending.map(value => value.id), ['later']);
+  assert.equal(repo.files.has(PATHS.legacyMonth('2026-11')), false);
+  const restored = new Store(repo); await restored.load();
+  assert.deepEqual(restored.pending.map(value => value.id), ['later']);
+});
 await check('conflicting IDs and incompatible retained source metadata cannot migrate', async () => {
   for (const legacy of [{ month: '2026-11', events: [{ ...create, title: 'collision' }] }, { month: '2026-11', events: [note], retained: 'different' }]) {
     const repo = withHistory([create], { retained: 'first' }); repo.files.set(PATHS.legacyMonth('2026-11'), JSON.stringify(legacy));
