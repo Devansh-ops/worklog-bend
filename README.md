@@ -1,3 +1,15 @@
+# Worklog Bend
+
+This repository is the starting point for a full Bend2 recreation of Worklog.
+**The application below is currently the upstream JavaScript implementation.**
+No Bend implementation or proofs have been completed yet.
+
+Start with [the current status](docs/STATUS.md), [the phased rebuild plan](docs/REBUILD_PLAN.md),
+and [the intended specification](docs/SPEC.md). For Windows restoration and GitHub
+publishing, see [the handoff guide](docs/WINDOWS_HANDOFF.md).
+
+The original project and MIT license are preserved. Upstream documentation follows.
+
 # Work Log
 
 A JIRA-style Kanban board for your own work that writes a **stateful, human-readable ledger of it
