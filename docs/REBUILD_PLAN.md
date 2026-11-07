@@ -1,6 +1,6 @@
 # Worklog Bend rebuild plan
 
-Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Local acceptance is complete for the implemented application and important modeled invariants; final hosted confirmation is recorded in STATUS.md. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
+Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Local acceptance is complete for the implemented application and important modeled invariants; hosted and clean-checkout confirmation are recorded in STATUS.md. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
 
 Read `AGENTS.md`, `docs/STATUS.md`, and `docs/SPEC.md` first. The original Worklog
 application is the feature reference, not an infallible behavioral oracle. The
@@ -193,7 +193,7 @@ posts a report to a team channel or sends real credentials to providers.
 
 ## Phase 7: packaging, deployment, and final acceptance
 
-Status: all local gates passed. Clean GitHub checkout/build and hosted Ubuntu checks already passed earlier integrations; final-source hosted confirmation and remote equality are recorded in STATUS.md.
+Status: accepted within the documented deployment/test scope. Final production source passed all local gates, clean GitHub checkout/build/CLI and the complete hosted Ubuntu workflow. STATUS.md records the run and remote evidence. No package or hosted site was published.
 
 Verify CLI flags, static path confinement and GET/HEAD behavior, browser launch,
 port conflicts, clean shutdown, setup/scaffold output, and distribution contents.

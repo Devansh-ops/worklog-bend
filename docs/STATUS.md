@@ -1,8 +1,9 @@
 # Worklog Bend status
 
 Updated: 2026-11-08. Repository recovery and the Bend-backed rebuild are implemented.
-Final local acceptance passed at source integration `38cc499`. The final GitHub
-push, hosted run and clean-checkout confirmation are being recorded below.
+Local acceptance, clean-checkout reproduction and hosted Ubuntu CI passed for
+production integration `cb8de30`. The concurrent-tab fixture was then strengthened
+to assert its exact observed approval and passed again at `bc7bc35`.
 
 ## Recovery
 
@@ -59,8 +60,8 @@ verbatim, with no semantic-redaction promise.
 | `npm --loglevel verbose run test:proof` | Real root verdict accepted, with 168 declarations including supporting lemmas and witnesses. All 13 named finite mutation counterexamples and full production-source mutant gates rejected as expected. These are not 168 independent application guarantees. |
 | `npm --loglevel verbose test` | All 16 runtime/adapter suites passed, including 48 inherited suite executions across four zones with 1,004 assertions, 29 store groups, strict codecs, generated domain, cache, provider contracts, portable setup and real CLI/package tests. |
 | `npm --loglevel verbose run test:browser:all` | All six real Chromium gates passed: generated ABI, 400px/wide demo and focus, exact AI consent, full setup/task/publish/report/wiki/reminder workflows, native vault/subpath execution, and concurrent-tab pending recovery. |
-| Hosted Ubuntu | Full earlier runs passed for `4d75201` and `d9802e6`; final integration run is recorded after push. |
-| Fresh GitHub clone | `d9802e6` downloaded/hash-verified the locked compiler and proof archives, accepted verdicts and reproduced assets. Final integration is checked again after push. |
+| Hosted Ubuntu | [Full final-source workflow](https://github.com/Devansh-ops/worklog-bend/actions/runs/42411768245) passed for `cb8de30`, including all 13 mutations, 16 runtime suites and six browser gates. Earlier integrations also passed. |
+| Fresh GitHub clone | Fresh GitHub checkout downloaded/hash-verified locked compiler/proof tools. Fast-forward to `cb8de30` accepted root/Planning verdicts, reproduced every asset and passed real CLI smoke. Checkout remained clean. |
 
 Browser: Chromium 149.0.7827.55 through Playwright 1.61.0. Windows: Node 25.8.1,
 npm 11.11.0. Full compiler imports and independent kernel checks use WSL Ubuntu
@@ -88,3 +89,11 @@ Run locally from the checkout with `npm --loglevel verbose start -- --demo`.
 Developer reproduction: `BEND_TOOLCHAIN.md`. Detailed boundary evidence:
 `CORE_ABI.md`, `PLANNING_ABI.md`, `STORE_PROTOCOL.md`, `SOURCE_CACHE.md`,
 `AI_TRANSPORT.md`, `BROWSER_ACCEPTANCE.md`, `RELEASE_CHECKS.md`.
+
+## Publication evidence
+
+Private visibility was verified with the GitHub API. Local main and remote
+refs/heads/main both equaled `cb8de30c6f0e9ed649c95b4d5b0391589f395c90`
+after the integrated production-source push. Subsequent test/evidence commits
+retain the same runtime and generated assets. Final local/remote equality is
+reported after the last normal push. No force push was used.

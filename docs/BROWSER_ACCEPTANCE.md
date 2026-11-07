@@ -30,3 +30,21 @@ node test/browser-workflow.mjs
 During isolated worktree verification, `WORKLOG_APP_ROOT` pointed to the integration checkout. After integration the default is this test's repository root. The optional override changes only the CLI's source directory.
 
 These checks cover one Chromium build and synthetic service responses. They do not establish live provider availability, authenticated GitHub API behavior, actual message delivery, WebGPU execution, all assistive technologies, or universal Bend laws. Separate vault, CLI, transport, source-cache, domain and proof checks remain necessary.
+
+## Concurrent pending recovery
+
+`node test/browser-pending.mjs` runs actual independent pages in one isolated
+Chromium context sharing native localStorage. It first reproduced the original
+stale-snapshot loss: simultaneous A/B staging restored only one event. After the
+append-only journal fix, both restore. Separate deterministic scenarios verify
+that discard removes only the draft actually observed by that tab, and that a
+plan containing exactly B acknowledges B while unseen C remains recoverable
+after both original tabs close and a new page reloads. Another branch sees none
+of those events. Requests outside the loopback origin fail the test.
+
+The aggregate `npm --loglevel verbose run test:browser:all` now has six actual
+browser gates. It passed locally on Chromium 149.0.7827.55/Playwright 1.61.0 and
+in the final production-source hosted Ubuntu workflow linked from STATUS.md.
+This is real browser durability evidence, not a proof of arbitrary storage
+interleavings. Journal retention and quota/recovery limits are documented in
+PENDING_RECOVERY.md.
