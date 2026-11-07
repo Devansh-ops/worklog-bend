@@ -4,6 +4,7 @@ import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
 import ./proof/Membership.bend as Membership
+import ./proof/Count.bend as Count
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -874,3 +875,23 @@ def content_b() -> T.DomainEvent:
 
 law complete_content_merge_witness:
   {Core.merge([content_a()], [content_b()]) == T.Merged{[content_a(), content_b()]} : T.MergeResult}
+
+def id_matches(id: String, event: T.DomainEvent) -> Bool:
+  String.eq(Core.event_id(event), id)
+
+def id_count(events: List<&2, T.DomainEvent>, id: String) -> Nat:
+  Count.count(~T.DomainEvent, ~String, ~id_matches, id, events)
+
+law id_sort_preserves_id_occurrences:
+  for events: List<&2, T.DomainEvent>
+  for id: String
+  {id_count(List.sort(~T.DomainEvent, ~Core.event_id_le, events), id) == id_count(events, id) : Nat}
+
+law chronological_sort_preserves_id_occurrences:
+  for events: List<&2, T.DomainEvent>
+  for id: String
+  {id_count(List.sort(~T.DomainEvent, ~Core.event_le, events), id) == id_count(events, id) : Nat}
+
+law singleton_has_one_id_occurrence:
+  for +event: T.DomainEvent
+  {id_count([event], Core.event_id(event)) == 1n : Nat}

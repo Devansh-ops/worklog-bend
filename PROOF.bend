@@ -5,6 +5,7 @@ import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
 import ./proof/Membership.bend as Membership
+import ./proof/Count.bend as Count
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -1585,3 +1586,12 @@ def Laws.semantically_absent_has_no_exact_match(events, target, absent):
 
 def Laws.semantically_unapproved_event_remains_pending(event, rest, committed, absent):
   Laws.unapproved_event_remains_pending(event, rest, committed, Laws.semantically_absent_has_no_exact_match(committed, event, absent))
+
+def Laws.id_sort_preserves_id_occurrences(events, id):
+  Count.sort(~T.DomainEvent, ~String, ~Laws.id_matches, ~Core.event_id_le, id, events)
+
+def Laws.chronological_sort_preserves_id_occurrences(events, id):
+  Count.sort(~T.DomainEvent, ~String, ~Laws.id_matches, ~Core.event_le, id, events)
+
+def Laws.singleton_has_one_id_occurrence(event):
+  Equal.cong(Bool, Nat, same => Nat.add(Count.weight(same), 0n), String.eq(Core.event_id(event), Core.event_id(event)), True{}, Laws.string_equality_reflexive(Core.event_id(event)))
