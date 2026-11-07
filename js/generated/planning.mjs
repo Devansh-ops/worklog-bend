@@ -1027,8 +1027,35 @@ function $Core_stage_unique(_event_0, _existing_0, _duplicate_0) {
   }
 }
 
+function $Core_stage_candidate_complete(_event_0, _valid_0) {
+  if (_valid_0) {
+    return {$: "StageAccepted", "event": _event_0};
+  } else {
+    return {$: "StageRejected", "reason": "command would create incomplete history; check its clock and references"};
+  }
+}
+
+function $Core_stage_candidate_replayed(_result_0, _event_0) {
+  if (_result_0.$ === "ReplayConflict") {
+    return {$: "StageRejected", "reason": "candidate event content conflict"};
+  } else {
+    const _state_0 = _result_0["state"];
+    return $Core_stage_candidate_complete(_event_0, $$Core_complete(_state_0));
+  }
+}
+
+function $Core_stage_proposed(_result_0, _existing_0) {
+  if (_result_0.$ === "StageRejected") {
+    const _reason_0 = _result_0["reason"];
+    return {$: "StageRejected", "reason": _reason_0};
+  } else {
+    const _event_0 = _result_0["event"];
+    return $Core_stage_candidate_replayed($$Core_replay($$List_append(_existing_0, {$: "Con", "head": _event_0, "tail": {$: "Nil"}})), _event_0);
+  }
+}
+
 function $Core_stage(_events_0, _event_0) {
-  return $Core_stage_unique(_event_0, _events_0, $$Core_ids_contains(_events_0, $$Core_event_id(_event_0)));
+  return $Core_stage_proposed($$Core_stage_unique(_event_0, _events_0, $$Core_ids_contains(_events_0, $$Core_event_id(_event_0))), _events_0);
 }
 
 function $Core_schema_allowed(_version_0) {
@@ -2340,6 +2367,7 @@ const $$Core_valid_patch = $Core_valid_patch;
 const $$Core_valid_kind = $Core_valid_kind;
 const $$Core_command_valid = $Core_command_valid;
 const $$Core_replay = $Core_replay;
+const $$Core_stage_unique = $Core_stage_unique;
 const $$Core_exact_contains = $Core_exact_contains;
 const $$Core_acknowledge_success = $Core_acknowledge_success;
 const $$Core_eligible_found = $Core_eligible_found;
@@ -2474,6 +2502,9 @@ const $$List_merge_step = $List_merge_step;export default {
   "Core:stage_valid": run_lib((a0,a1) => run_loop($Core_stage_valid(a0,a1)), 2),
   "Core:stage_state": run_lib((a0,a1) => run_loop($Core_stage_state(a0,a1)), 2),
   "Core:stage_unique": run_lib((a0,a1,a2) => run_loop($Core_stage_unique(a0,a1,a2)), 3),
+  "Core:stage_candidate_complete": run_lib((a0,a1) => run_loop($Core_stage_candidate_complete(a0,a1)), 2),
+  "Core:stage_candidate_replayed": run_lib((a0,a1) => run_loop($Core_stage_candidate_replayed(a0,a1)), 2),
+  "Core:stage_proposed": run_lib((a0,a1) => run_loop($Core_stage_proposed(a0,a1)), 2),
   "Core:stage": run_lib((a0,a1) => run_loop($Core_stage(a0,a1)), 2),
   "Core:schema_allowed": run_lib((a0) => run_loop($Core_schema_allowed(a0)), 1),
   "Core:exact_contains": run_lib((a0,a1) => run_loop($Core_exact_contains(a0,a1)), 2),

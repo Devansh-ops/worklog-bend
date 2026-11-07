@@ -1,4 +1,4 @@
-name: Bend toolchain
+name: Bend verification
 on:
   push:
   pull_request:
@@ -7,6 +7,7 @@ permissions:
 jobs:
   compiler-and-verdict:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,3 +16,9 @@ jobs:
       - run: node scripts/install-bend.mjs
       - run: node scripts/install-proof-tools.mjs
       - run: sh scripts/test-bend-verdict.sh
+      - run: npm --loglevel verbose run check:build
+      - run: npm --loglevel verbose run test:proof
+      - run: npm --loglevel verbose test
+      - run: npm --loglevel verbose install --no-save --package-lock=false playwright@1.61.0
+      - run: npm --loglevel verbose exec -- playwright install --with-deps chromium
+      - run: npm --loglevel verbose run test:browser:all

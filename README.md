@@ -1,14 +1,28 @@
 # Worklog Bend
 
-This repository is the starting point for a full Bend2 recreation of Worklog.
-**The application below is currently the upstream JavaScript implementation.**
-No Bend implementation or proofs have been completed yet.
+Worklog rebuilt with Bend 2.0.40 for event reconciliation, replay, command
+validation, privacy projections, board/wiki/report decisions and publication
+planning. JavaScript handles browser rendering, storage, cryptography and HTTP.
+The generated ES modules ship in the repository; serving the app needs Node,
+with no compiler in the browser.
 
-Start with [the current status](docs/STATUS.md), [the phased rebuild plan](docs/REBUILD_PLAN.md),
-and [the intended specification](docs/SPEC.md). For Windows restoration and GitHub
-publishing, see [the handoff guide](docs/WINDOWS_HANDOFF.md).
+```powershell
+npm --loglevel verbose start -- --demo --no-open
+```
 
-The original project and MIT license are preserved. Upstream documentation follows.
+Open the displayed local URL. Demo edits are temporary. To create a data
+repository, use the browser setup flow or `npm --loglevel verbose run setup:data`.
+Publishing always requires approval of the exact preview.
+
+Read [current status](docs/STATUS.md), [feature evidence](docs/FEATURE_MATRIX.md),
+[checked law scope](docs/LAW_REVIEW.md) and [the rebuild plan](docs/REBUILD_PLAN.md).
+[Toolchain instructions](docs/BEND_TOOLCHAIN.md) explain the pinned compiler,
+real proof verdict and reproducible asset build. On Windows, full compiler
+imports and Lean checks run through WSL Ubuntu. Runtime, proof and browser gates
+are separate commands; their execution limits are recorded in the status.
+
+The original Git history and MIT license are preserved. Historical upstream
+documentation follows; its public demo links run the original upstream app.
 
 # Work Log
 

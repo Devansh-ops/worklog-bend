@@ -1,8 +1,6 @@
 # Worklog Bend rebuild plan
 
-Updated: 2026-11-07. Planning and handoff only. All implementation phases below
-are pending. No Bend compiler has been installed or pinned, no Bend code or laws
-have been checked, and no runtime or browser tests have been run for this rebuild.
+Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Phase 3 formal acceptance is still in progress. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
 
 Read `AGENTS.md`, `docs/STATUS.md`, and `docs/SPEC.md` first. The original Worklog
 application is the feature reference, not an infallible behavioral oracle. The
@@ -59,7 +57,7 @@ Use repository-local identity `Devansh Sehgal <devanshsehgal02@gmail.com>`.
 
 ## Phase 1: establish a verified compiler and runnable bridge
 
-Status: pending.
+Status: tooling gate completed with exact pin, real verdict/negative fixtures, generated ABI and static browser execution. See BEND_TOOLCHAIN.md. Hosted CI remains separately recorded in STATUS.
 
 1. Record OS/architecture and required Node/runtime versions. Choose an exact
    Bend2 commit or release, lock installation source and integrity information,
@@ -87,7 +85,7 @@ the phase pending instead of substituting unverified claims.
 
 ## Phase 2: freeze behavior, compatibility, and law contracts
 
-Status: pending. Depends on Phase 1.
+Status: contracts and witnesses reviewed; source/evidence inventory recorded in FEATURE_MATRIX.md and DOMAIN_CONTRACTS.md.
 
 Inventory F01 through F24 against source and meaningful upstream tests. Run the
 existing suite and record baseline results, including any environment-specific
@@ -116,7 +114,7 @@ downgrade unknown schemas or copy an identified reference defect for parity.
 
 ## Phase 3: implement and prove the event core
 
-Status: pending. Depends on Phase 2.
+Status: implementation integrated and runtime-tested. Universal merge uniqueness/order/algebra and remaining refinement acceptance are still pending; see LAW_REVIEW.md.
 
 Implement event validation, commands, collision-aware canonical merge, replay,
 notes, deletion, status/completion metadata, summaries/reports, and checkpoint
@@ -133,7 +131,7 @@ on `@unsafe`, foreign effects, or an uninhabited valid-state assumption.
 
 ## Phase 4: storage, readable ledger, migration, and publish
 
-Status: pending. Depends on Phase 3. Adapter preparation can run in parallel once
+Status: adapters and exact plans implemented and tested; final acceptance depends on Phase 3. Adapter preparation can run in parallel once
 Phase 2 fixes its contract.
 
 Implement schema guards and codecs, local staging/restore/discard, lazy history,
@@ -157,7 +155,7 @@ recovery and explicit fallback when checkpoint validity is insufficient.
 
 ## Phase 5: privacy and all AI paths
 
-Status: pending. Depends on Phase 3 and accepted request adapter interfaces.
+Status: implemented with synthetic provider-byte checks and actual browser consent; final acceptance depends on the complete domain gate.
 
 Implement the eligible-task projection, note policy, actual-destination locality,
 immutable request/disclosure object, endpoint-specific consent, model-response
@@ -178,7 +176,7 @@ real service smoke checks, if run, use synthetic content and record limitations.
 
 ## Phase 6: full browser feature parity
 
-Status: pending. Depends on accepted core, storage, and privacy slices. UI work
+Status: runnable browser integration and acceptance checks recorded in BROWSER_ACCEPTANCE.md; final acceptance follows the domain proof gate. UI work
 can proceed alongside Phases 4 and 5 against stable contracts.
 
 Complete board, details, wiki, summaries, standup, brain dump, setup, settings,
@@ -197,7 +195,7 @@ posts a report to a team channel or sends real credentials to providers.
 
 ## Phase 7: packaging, deployment, and final acceptance
 
-Status: pending. Depends on Phases 1 through 6.
+Status: reproducible static build, package and boundary checks implemented; fresh-clone/hosted CI and final proof acceptance are in progress.
 
 Verify CLI flags, static path confinement and GET/HEAD behavior, browser launch,
 port conflicts, clean shutdown, setup/scaffold output, and distribution contents.
@@ -221,8 +219,4 @@ by default. Do not publish a BendHub package as part of this rebuild.
 
 ## Handoff checkpoint
 
-Resume at Phase 1 after restoring this repository locally. The PowerShell handoff
-handles local repository restoration and GitHub creation/push. It does not run
-these implementation phases or turn this plan into completed work. Keep each
-accepted phase runnable, commit coherent changes, and update status before moving
-to the next gate.
+Windows restoration and private GitHub creation/push are complete. Continue the remaining universal proof obligations and final acceptance, preserving the runnable integrated application. STATUS.md records actual checks; do not describe unfinished laws or hosted runs as passing.

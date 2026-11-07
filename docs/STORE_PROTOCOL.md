@@ -16,4 +16,17 @@ Successful writes acknowledge only the approved events with identical full conte
 
 Pending storage is scoped by repository and branch. Legacy unscoped storage requires an explicit recovery choice and remains available as its original recovery source. Malformed pending data is not overwritten; storage failures keep recoverable in-memory events and show an error. Demo stores never read or write pending localStorage.
 
-The ten initial independent integration checks cover exact approval, immutable bytes, in-flight edits, pre-write revision conflicts, network failure, three future-schema locations, legacy/current merge and metadata, collisions, late checkpoints/reports, branch recovery, pinned GitHub read URLs and stale-parent refusal before mutations. Their fake transport credentials are synthetic. They do not establish real GitHub service availability, browser storage quotas, or a universal migration/refinement theorem.
+The thirteen independent integration groups cover exact approval, immutable bytes, in-flight edits, pre-write revision conflicts, network failure, three future-schema locations, legacy/current merge and metadata, collisions, late checkpoints/reports, branch recovery, pinned GitHub read URLs and stale-parent refusal before mutations. Their fake transport credentials are synthetic. They do not establish real GitHub service availability, browser storage quotas, or a universal migration/refinement theorem.
+
+## Verified source cache and recovery
+
+The remote Git tree at the pinned revision supplies the complete month source
+index, including files absent from the manifest. Cached raw JSON is accepted only
+after matching that tree entry's Git blob hash. Every source is decoded and
+canonically replayed; schema 1/2 snapshots cannot certify coverage. See
+SOURCE_CACHE.md for cold, warm and changed-source read counts.
+
+A localStorage quota failure keeps accepted pending edits in memory and displays
+a persistent recovery warning. Malformed saved events keep the store read-only
+and preserve the original storage value. These failure cases are adapter tests,
+not claims about universal browser storage availability.

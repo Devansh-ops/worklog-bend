@@ -1,7 +1,7 @@
 {
   "name": "work-log",
   "version": "0.1.0",
-  "description": "A JIRA-style board for your own work, backed by an append-only event log in a git repo you own. No build step, no server, no database.",
+  "description": "Worklog with a checked Bend domain core and static browser adapters.",
   "type": "module",
   "license": "MIT",
   "author": "Tanmay Agrawal",
@@ -16,25 +16,30 @@
     "static-site",
     "zero-dependency"
   ],
-  "homepage": "https://tanmayagrawal21.github.io/worklog/",
+  "homepage": "https://github.com/Devansh-ops/worklog-bend",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tanmayagrawal21/worklog.git"
+    "url": "git+https://github.com/Devansh-ops/worklog-bend.git"
   },
   "bugs": {
-    "url": "https://github.com/tanmayagrawal21/worklog/issues"
+    "url": "https://github.com/Devansh-ops/worklog-bend/issues"
   },
   "bin": {
     "work-log": "bin/worklog.mjs"
   },
   "scripts": {
     "start": "node bin/worklog.mjs",
-    "test": "node test/run-node-baseline.mjs && node test/cli-real-smoke.mjs && node test/codec-boundary.mjs",
+    "test": "node test/run-all.mjs",
     "test:upstream-jsc": "./scripts/test.sh",
-    "test:reference-defects": "node test/reference-defects.mjs",
+    "test:reference-defects": "node test/domain-bridge.mjs && node test/store-integration.mjs && node test/ai-privacy.mjs",
     "test:browser": "node scripts/test-browser-demo.mjs",
     "test:bend": "node scripts/test-bend-toolchain.mjs",
-    "test:bend-browser": "node scripts/test-bend-browser.mjs"
+    "test:bend-browser": "node scripts/test-bend-browser.mjs",
+    "build": "node scripts/build.mjs",
+    "check:build": "node scripts/build.mjs --check",
+    "test:proof": "node test/proof/negative.mjs",
+    "test:browser:all": "node test/browser-all.mjs",
+    "setup:data": "node scripts/setup.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -45,6 +50,7 @@
     "docs/",
     "js/",
     "scripts/setup.sh",
+    "scripts/setup.mjs",
     "scripts/scaffold.mjs",
     "index.html",
     "SETUP.md"

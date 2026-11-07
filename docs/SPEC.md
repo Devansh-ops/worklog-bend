@@ -1,14 +1,15 @@
 # Worklog Bend specification
 
-Status: proposed implementation contract. Every Bend implementation and proof is
-pending. This document describes the full rebuild, not a completed port.
+Status: intended behavior contract for the rebuilt application. See STATUS.md,
+FEATURE_MATRIX.md and LAW_REVIEW.md for implemented features, executed checks and
+the precise remaining proof obligations.
 
 The reference is Worklog at upstream commit
 `53bff74016df38a9c88f6cf94c7b556225dd79fb`. The README describes product intent;
 the JavaScript and tests supply examples and compatibility fixtures. Where source
 behavior contradicts a stated requirement, preserve the requirement and add a
-regression test. The observations below come from reading code, not reproducing
-failures with a running application.
+regression test. The observations below began as source-review findings. BASELINE.md records
+reproduced reference faults; FEATURE_MATRIX.md links current regressions.
 
 ## Product and runtime contract
 

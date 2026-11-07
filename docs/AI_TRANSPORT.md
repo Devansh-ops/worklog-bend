@@ -88,3 +88,17 @@ Google's compatibility documentation URL returned an unsupported content type
 to the documentation fetcher, so that check remains limited to the deterministic
 existing Google route contract. Catalogue fallbacks are suggestions, not a promise
 of current model availability; actual discovery remains supported.
+
+## Credential and draft lifetime
+
+Changing, unlocking or forgetting credentials advances a private session epoch.
+Requests prepared against an earlier epoch are stale, without placing tokens in
+disclosures or domain events. Forget clears the active GitHub adapter token and
+unsaved token/passphrase inputs; saving an empty settings form cannot restore
+forgotten secrets. A native browser regression exercises this UI flow.
+
+Report requests also bind the current draft, date, kind and formatting options.
+The controller rechecks immediately before applying a result. A response cannot
+overwrite text edited while the request was in flight. Clipboard recording binds
+the date/kind captured with the copied text, and rejected staging preserves the
+text for recovery. View-controller tests exercise these asynchronous races.

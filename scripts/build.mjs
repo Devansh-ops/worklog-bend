@@ -20,9 +20,10 @@ function bend(args) {
 }
 const hash = value => createHash('sha256').update(value).digest('hex');
 const lock = JSON.parse(await readFile(resolve(root, 'toolchain/bend.lock.json'), 'utf8'));
-const names = ['Core', 'Reports', 'Publication', 'Views'].filter(name => existsSync(resolve(root, `bend/${name}.bend`)));
+const names = ['Core', 'Reports', 'Publication', 'Views', 'Planning'].filter(name => existsSync(resolve(root, `bend/${name}.bend`)));
 await mkdir(resolve(root, '.toolchain/generated'), { recursive: true });
 bend(['PROOF.bend', '--verdict']);
+bend(['proof/PlanningLaws.bend', '--verdict']);
 const outputs = new Map();
 for (const name of names) {
   const filename = `${name.toLowerCase()}.mjs`;
