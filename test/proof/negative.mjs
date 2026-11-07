@@ -48,6 +48,13 @@ const mutations = [
     replacement: 'schemas_compatible(schemas)',
     failure: /changed_plan_refused_witness/,
   },
+  {
+    name: 'distinct-event omission during merge',
+    file: 'Core.bend',
+    source: 'case True{}:\n      xs\n    case False{}:\n      e <> xs',
+    replacement: 'case True{}:\n      xs\n    case False{}:\n      xs',
+    failure: /ScanProof.unique_put_invariant|scan_preserves_ids|successful_merge_has_exact_input_ids/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {

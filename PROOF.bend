@@ -519,3 +519,360 @@ def Laws.publication_rejects_unsupported_schema_anywhere(prefix, suffix, version
 
 def Laws.approved_publication_exists():
   ("synthetic exact write plan", {==})
+
+def Laws.or_associative(a, b, c):
+  match a:
+    case False{}:
+      {==}
+    case True{}:
+      {==}
+
+def Laws.or_commutative(a, b):
+  match a b:
+    case False{} False{}:
+      {==}
+    case False{} True{}:
+      {==}
+    case True{} False{}:
+      {==}
+    case True{} True{}:
+      {==}
+
+def Laws.or_false_right(a):
+  match a:
+    case False{}:
+      {==}
+    case True{}:
+      {==}
+
+def Laws.or_move_left(a, b, c):
+  match a b:
+    case False{} False{}:
+      {==}
+    case False{} True{}:
+      {==}
+    case True{} False{}:
+      {==}
+    case True{} True{}:
+      {==}
+
+def Laws.ids_append(xs, ys, id):
+  match xs:
+    case Nil{}:
+      {==}
+    case +h <> +t:
+      Equal.trans(Bool,
+        Core.ids_contains(List.append(&2, T.DomainEvent, h <> t, ys), id),
+        Bool.or(String.eq(Core.event_id(h), id), Bool.or(Core.ids_contains(t, id), Core.ids_contains(ys, id))),
+        Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(ys, id)),
+        Equal.cong(Bool, Bool, member => Bool.or(String.eq(Core.event_id(h), id), member),
+          Core.ids_contains(List.append(&2, T.DomainEvent, t, ys), id), Bool.or(Core.ids_contains(t, id), Core.ids_contains(ys, id)),
+          Laws.ids_append(t, ys, id)),
+        Laws.or_associative(String.eq(Core.event_id(h), id), Core.ids_contains(t, id), Core.ids_contains(ys, id)))
+
+def Laws.ids_reverse_accumulator(xs, acc, id):
+  match xs:
+    case Nil{}:
+      {==}
+    case +h <> +t:
+      Equal.trans(Bool,
+        Core.ids_contains(List.reverse.go(&2, T.DomainEvent, h <> t, acc), id),
+        Bool.or(Core.ids_contains(t, id), Core.ids_contains(h <> acc, id)),
+        Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(acc, id)),
+        Laws.ids_reverse_accumulator(t, h <> acc, id),
+        Equal.trans(Bool,
+          Bool.or(Core.ids_contains(t, id), Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(acc, id))),
+          Bool.or(String.eq(Core.event_id(h), id), Bool.or(Core.ids_contains(t, id), Core.ids_contains(acc, id))),
+          Bool.or(Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(t, id)), Core.ids_contains(acc, id)),
+          Laws.or_move_left(Core.ids_contains(t, id), String.eq(Core.event_id(h), id), Core.ids_contains(acc, id)),
+          Laws.or_associative(String.eq(Core.event_id(h), id), Core.ids_contains(t, id), Core.ids_contains(acc, id))))
+
+def Laws.ids_concat(runs, id):
+  match runs:
+    case Nil{}:
+      {==}
+    case +h <> +t:
+      Equal.trans(Bool, Core.ids_contains(List.concat(&2, T.DomainEvent, h <> t), id),
+        Bool.or(Core.ids_contains(h, id), Core.ids_contains(List.concat(&2, T.DomainEvent, t), id)), Laws.runs_ids(h <> t, id),
+        Laws.ids_append(h, List.concat(&2, T.DomainEvent, t), id),
+        Equal.cong(Bool, Bool, member => Bool.or(Core.ids_contains(h, id), member),
+          Core.ids_contains(List.concat(&2, T.DomainEvent, t), id), Laws.runs_ids(t, id), Laws.ids_concat(t, id)))
+
+def Laws.or_pair_swap(a, b):
+  match a b:
+    case False{} False{}:
+      {==}
+    case False{} True{}:
+      {==}
+    case True{} False{}:
+      {==}
+    case True{} True{}:
+      {==}
+
+def SortProof.select_left(+a: Bool, +x: Bool, +xt: Bool, +y: Bool, +yt: Bool) ->
+  {Bool.or(Bool.or(x, a), Bool.or(xt, Bool.or(y, yt))) == Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))) : Bool}:
+  Equal.trans(Bool,
+    Bool.or(Bool.or(x, a), Bool.or(xt, Bool.or(y, yt))), Bool.or(x, Bool.or(a, Bool.or(xt, Bool.or(y, yt)))),
+    Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))),
+    Equal.sym(Bool, Bool.or(x, Bool.or(a, Bool.or(xt, Bool.or(y, yt)))), Bool.or(Bool.or(x, a), Bool.or(xt, Bool.or(y, yt))),
+      Laws.or_associative(x, a, Bool.or(xt, Bool.or(y, yt)))),
+    Equal.trans(Bool,
+      Bool.or(x, Bool.or(a, Bool.or(xt, Bool.or(y, yt)))), Bool.or(a, Bool.or(x, Bool.or(xt, Bool.or(y, yt)))),
+      Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))),
+      Laws.or_move_left(x, a, Bool.or(xt, Bool.or(y, yt))),
+      Equal.cong(Bool, Bool, member => Bool.or(a, member), Bool.or(x, Bool.or(xt, Bool.or(y, yt))),
+        Bool.or(Bool.or(x, xt), Bool.or(y, yt)), Laws.or_associative(x, xt, Bool.or(y, yt)))))
+
+def SortProof.select_right(+a: Bool, +x: Bool, +xt: Bool, +y: Bool, +yt: Bool) ->
+  {Bool.or(Bool.or(y, a), Bool.or(Bool.or(x, xt), yt)) == Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))) : Bool}:
+  Equal.trans(Bool,
+    Bool.or(Bool.or(y, a), Bool.or(Bool.or(x, xt), yt)), Bool.or(y, Bool.or(a, Bool.or(Bool.or(x, xt), yt))),
+    Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))),
+    Equal.sym(Bool, Bool.or(y, Bool.or(a, Bool.or(Bool.or(x, xt), yt))), Bool.or(Bool.or(y, a), Bool.or(Bool.or(x, xt), yt)),
+      Laws.or_associative(y, a, Bool.or(Bool.or(x, xt), yt))),
+    Equal.trans(Bool,
+      Bool.or(y, Bool.or(a, Bool.or(Bool.or(x, xt), yt))), Bool.or(a, Bool.or(y, Bool.or(Bool.or(x, xt), yt))),
+      Bool.or(a, Bool.or(Bool.or(x, xt), Bool.or(y, yt))),
+      Laws.or_move_left(y, a, Bool.or(Bool.or(x, xt), yt)),
+      Equal.cong(Bool, Bool, member => Bool.or(a, member), Bool.or(y, Bool.or(Bool.or(x, xt), yt)),
+        Bool.or(Bool.or(x, xt), Bool.or(y, yt)), Laws.or_move_left(y, Bool.or(x, xt), yt))))
+
+def SortProof.merge_step(+acc: List<&2, T.DomainEvent>, +x: T.DomainEvent, +xt: List<&2, T.DomainEvent>, +y: T.DomainEvent, +yt: List<&2, T.DomainEvent>, order: Bool, +id: String) ->
+  {Laws.merge_state_ids(List.merge.step(T.DomainEvent, acc, x, xt, y, yt, order), id) == Laws.merge_state_ids((acc, x <> xt, y <> yt), id) : Bool}:
+  match order:
+    case False{}:
+      SortProof.select_right(Core.ids_contains(acc, id), String.eq(Core.event_id(x), id), Core.ids_contains(xt, id), String.eq(Core.event_id(y), id), Core.ids_contains(yt, id))
+    case True{}:
+      SortProof.select_left(Core.ids_contains(acc, id), String.eq(Core.event_id(x), id), Core.ids_contains(xt, id), String.eq(Core.event_id(y), id), Core.ids_contains(yt, id))
+
+def SortProof.choose_merge(~le: T.DomainEvent -> T.DomainEvent -> Bool, fuel: Nat,
+  acc: List<&2, T.DomainEvent>, x: T.DomainEvent, xt: List<&2, T.DomainEvent>, y: T.DomainEvent, yt: List<&2, T.DomainEvent>, order: Bool, id: String,
+  left: {Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, fuel, (x <> acc, xt, y <> yt)), id) == Laws.merge_state_ids((acc, x <> xt, y <> yt), id) : Bool},
+  right: {Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, fuel, (y <> acc, x <> xt, yt)), id) == Laws.merge_state_ids((acc, x <> xt, y <> yt), id) : Bool}) ->
+  {Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, fuel, List.merge.step(T.DomainEvent, acc, x, xt, y, yt, order)), id) == Laws.merge_state_ids((acc, x <> xt, y <> yt), id) : Bool}:
+  match order:
+    case False{}:
+      right
+    case True{}:
+      left
+
+def SortProof.merge_membership(~le: T.DomainEvent -> T.DomainEvent -> Bool, fuel: Nat,
+  +acc: List<&2, T.DomainEvent>, +xs: List<&2, T.DomainEvent>, +ys: List<&2, T.DomainEvent>, +id: String) ->
+  {Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, fuel, (acc, xs, ys)), id) == Laws.merge_state_ids((acc, xs, ys), id) : Bool}:
+  match fuel:
+    case 0n:
+      Equal.trans(Bool, Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, 0n, (acc, xs, ys)), id),
+        Bool.or(Core.ids_contains(acc, id), Core.ids_contains(List.append(&2, T.DomainEvent, xs, ys), id)),
+        Laws.merge_state_ids((acc, xs, ys), id),
+        Laws.ids_reverse_accumulator(acc, List.append(&2, T.DomainEvent, xs, ys), id),
+        Equal.cong(Bool, Bool, member => Bool.or(Core.ids_contains(acc, id), member),
+          Core.ids_contains(List.append(&2, T.DomainEvent, xs, ys), id), Bool.or(Core.ids_contains(xs, id), Core.ids_contains(ys, id)), Laws.ids_append(xs, ys, id)))
+    case Succ{+f}:
+      match xs ys:
+        case Nil{} Nil{}:
+          Laws.ids_reverse_accumulator(acc, Nil{}, id)
+        case Nil{} y <> yt:
+          Laws.ids_reverse_accumulator(acc, y <> yt, id)
+        case x <> xt Nil{}:
+          Equal.trans(Bool, Core.ids_contains(List.reverse.go(&2, T.DomainEvent, acc, x <> xt), id),
+            Bool.or(Core.ids_contains(acc, id), Core.ids_contains(x <> xt, id)), Laws.merge_state_ids((acc, x <> xt, Nil{}), id),
+            Laws.ids_reverse_accumulator(acc, x <> xt, id),
+            Equal.cong(Bool, Bool, member => Bool.or(Core.ids_contains(acc, id), member), Core.ids_contains(x <> xt, id), Bool.or(Core.ids_contains(x <> xt, id), False{}),
+              Equal.sym(Bool, Bool.or(Core.ids_contains(x <> xt, id), False{}), Core.ids_contains(x <> xt, id), Laws.or_false_right(Core.ids_contains(x <> xt, id)))))
+        case +x <> +xt +y <> +yt:
+          SortProof.choose_merge(~le, f, acc, x, xt, y, yt, le(x, y), id,
+            Equal.trans(Bool, Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, f, (x <> acc, xt, y <> yt)), id),
+              Laws.merge_state_ids((x <> acc, xt, y <> yt), id), Laws.merge_state_ids((acc, x <> xt, y <> yt), id),
+              SortProof.merge_membership(~le, f, x <> acc, xt, y <> yt, id), SortProof.merge_step(acc, x, xt, y, yt, True{}, id)),
+            Equal.trans(Bool, Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, f, (y <> acc, x <> xt, yt)), id),
+              Laws.merge_state_ids((y <> acc, x <> xt, yt), id), Laws.merge_state_ids((acc, x <> xt, y <> yt), id),
+              SortProof.merge_membership(~le, f, y <> acc, x <> xt, yt, id), SortProof.merge_step(acc, x, xt, y, yt, False{}, id)))
+
+def SortProof.pair_membership(+x: T.DomainEvent, +y: T.DomainEvent, order: Bool, +id: String) ->
+  {Core.ids_contains(List.sort.pair(T.DomainEvent, x, y, order), id) == Core.ids_contains([x, y], id) : Bool}:
+  match order:
+    case False{}:
+      Laws.or_pair_swap(String.eq(Core.event_id(y), id), String.eq(Core.event_id(x), id))
+    case True{}:
+      {==}
+
+def SortProof.pairs_membership(~le: T.DomainEvent -> T.DomainEvent -> Bool, xs: List<&2, T.DomainEvent>, +id: String) ->
+  {Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, xs), id) == Core.ids_contains(xs, id) : Bool}:
+  match xs:
+    case Nil{}:
+      {==}
+    case h <> Nil{}:
+      Laws.or_false_right(Core.ids_contains([h], id))
+    case +x <> +y <> +t:
+      Equal.trans(Bool,
+        Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, x <> y <> t), id),
+        Bool.or(Core.ids_contains([x, y], id), Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, t), id)), Core.ids_contains(x <> y <> t, id),
+        Equal.cong(Bool, Bool, member => Bool.or(member, Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, t), id)),
+          Core.ids_contains(List.sort.pair(T.DomainEvent, x, y, le(x, y)), id), Core.ids_contains([x, y], id), SortProof.pair_membership(x, y, le(x, y), id)),
+        Equal.trans(Bool,
+          Bool.or(Core.ids_contains([x, y], id), Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, t), id)), Bool.or(Core.ids_contains([x, y], id), Core.ids_contains(t, id)), Core.ids_contains(x <> y <> t, id),
+          Equal.cong(Bool, Bool, member => Bool.or(Core.ids_contains([x, y], id), member), Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~le, t), id), Core.ids_contains(t, id), SortProof.pairs_membership(~le, t, id)),
+          Equal.sym(Bool, Core.ids_contains(x <> y <> t, id), Bool.or(Core.ids_contains([x, y], id), Core.ids_contains(t, id)), Laws.ids_append([x, y], t, id))))
+
+def SortProof.pass_membership(~le: T.DomainEvent -> T.DomainEvent -> Bool, runs: List<&2, List<&2, T.DomainEvent>>, +n: Nat, +id: String) ->
+  {Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, runs), id) == Laws.runs_ids(runs, id) : Bool}:
+  match runs:
+    case Nil{}:
+      {==}
+    case r <> Nil{}:
+      {==}
+    case +r1 <> +r2 <> +rest:
+      Equal.trans(Bool,
+        Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, r1 <> r2 <> rest), id),
+        Bool.or(Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, rest), id)), Laws.runs_ids(r1 <> r2 <> rest, id),
+        Equal.cong(Bool, Bool, member => Bool.or(member, Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, rest), id)),
+          Core.ids_contains(List.merge.go(~T.DomainEvent, ~le, n, (Nil{}, r1, r2)), id), Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), SortProof.merge_membership(~le, n, Nil{}, r1, r2, id)),
+        Equal.trans(Bool,
+          Bool.or(Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, rest), id)),
+          Bool.or(Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), Laws.runs_ids(rest, id)), Laws.runs_ids(r1 <> r2 <> rest, id),
+          Equal.cong(Bool, Bool, member => Bool.or(Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), member),
+            Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, rest), id), Laws.runs_ids(rest, id), SortProof.pass_membership(~le, rest, n, id)),
+          Equal.sym(Bool, Bool.or(Core.ids_contains(r1, id), Bool.or(Core.ids_contains(r2, id), Laws.runs_ids(rest, id))),
+            Bool.or(Bool.or(Core.ids_contains(r1, id), Core.ids_contains(r2, id)), Laws.runs_ids(rest, id)), Laws.or_associative(Core.ids_contains(r1, id), Core.ids_contains(r2, id), Laws.runs_ids(rest, id)))))
+
+def SortProof.go_membership(~le: T.DomainEvent -> T.DomainEvent -> Bool, fuel: Nat, +n: Nat, runs: List<&2, List<&2, T.DomainEvent>>, +id: String) ->
+  {Core.ids_contains(List.sort.go(~T.DomainEvent, ~le, fuel, n, runs), id) == Laws.runs_ids(runs, id) : Bool}:
+  match fuel:
+    case 0n:
+      Laws.ids_concat(runs, id)
+    case 1n+f:
+      match runs:
+        case Nil{}:
+          {==}
+        case +r <> Nil{}:
+          Equal.sym(Bool, Bool.or(Core.ids_contains(r, id), False{}), Core.ids_contains(r, id), Laws.or_false_right(Core.ids_contains(r, id)))
+        case +r1 <> +r2 <> +rest:
+          Equal.trans(Bool,
+            Core.ids_contains(List.sort.go(~T.DomainEvent, ~le, 1n+f, n, r1 <> r2 <> rest), id), Laws.runs_ids(List.sort.pass(~T.DomainEvent, ~le, n, r1 <> r2 <> rest), id), Laws.runs_ids(r1 <> r2 <> rest, id),
+            SortProof.go_membership(~le, f, n, List.sort.pass(~T.DomainEvent, ~le, n, r1 <> r2 <> rest), id),
+            SortProof.pass_membership(~le, r1 <> r2 <> rest, n, id))
+
+def Laws.id_sort_preserves_ids(xs, id):
+  match xs:
+    case Nil{}:
+      {==}
+    case h <> t:
+      +ys = {h <> t : List<&2, T.DomainEvent>}
+      +n = List.length(&2, T.DomainEvent, ys)
+      Equal.trans(Bool, Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, ys), id), Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~Core.event_id_le, ys), id), Core.ids_contains(ys, id),
+        SortProof.go_membership(~Core.event_id_le, n, n, List.sort.pairs(~T.DomainEvent, ~Core.event_id_le, ys), id),
+        SortProof.pairs_membership(~Core.event_id_le, ys, id))
+
+def Laws.chronological_sort_preserves_ids(xs, id):
+  match xs:
+    case Nil{}:
+      {==}
+    case h <> t:
+      +ys = {h <> t : List<&2, T.DomainEvent>}
+      +n = List.length(&2, T.DomainEvent, ys)
+      Equal.trans(Bool, Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_le, ys), id), Laws.runs_ids(List.sort.pairs(~T.DomainEvent, ~Core.event_le, ys), id), Core.ids_contains(ys, id),
+        SortProof.go_membership(~Core.event_le, n, n, List.sort.pairs(~T.DomainEvent, ~Core.event_le, ys), id),
+        SortProof.pairs_membership(~Core.event_le, ys, id))
+
+def Laws.boolean_absorption(condition, member, implication):
+  match condition:
+    case False{}:
+      {==}
+    case True{}:
+      Equal.sym(Bool, member, True{}, implication({==}))
+
+def Laws.member_absorption(events, presentId, id, present):
+  Laws.boolean_absorption(String.eq(presentId, id), Core.ids_contains(events, id),
+    same => Equal.trans(Bool, Core.ids_contains(events, id), Core.ids_contains(events, presentId), True{},
+      Equal.cong(String, Bool, key => Core.ids_contains(events, key), id, presentId,
+        Equal.sym(String, presentId, id, Laws.string_equality_sound(presentId, id, same))), present))
+
+def Laws.member_self_head(event, rest):
+  Equal.cong(Bool, Bool, same => Bool.or(same, Core.ids_contains(rest, Core.event_id(event))),
+    String.eq(Core.event_id(event), Core.event_id(event)), True{}, Laws.string_equality_reflexive(Core.event_id(event)))
+
+def ScanProof.unique_put_invariant(+event: T.DomainEvent, +acc: List<&2, T.DomainEvent>, +previous: T.DomainEvent, +id: String, same: Bool,
+  link: {same == String.eq(Core.event_id(event), Core.event_id(previous)) : Bool},
+  covered: {Core.ids_contains(acc, Core.event_id(previous)) == True{} : Bool}) ->
+  {Core.ids_contains(Core.unique_put(event, acc, same), id) == Bool.or(String.eq(Core.event_id(event), id), Core.ids_contains(acc, id)) : Bool} &
+  {Core.ids_contains(Core.unique_put(event, acc, same), Core.event_id(event)) == True{} : Bool}:
+  match same:
+    case False{}:
+      ({==}, Laws.member_self_head(event, acc))
+    case True{}:
+      equal_ids = Laws.string_equality_sound(Core.event_id(event), Core.event_id(previous),
+        Equal.sym(Bool, True{}, String.eq(Core.event_id(event), Core.event_id(previous)), link))
+      +present = Equal.trans(Bool, Core.ids_contains(acc, Core.event_id(event)), Core.ids_contains(acc, Core.event_id(previous)), True{},
+        Equal.cong(String, Bool, key => Core.ids_contains(acc, key), Core.event_id(event), Core.event_id(previous), equal_ids), covered)
+      (Equal.sym(Bool, Bool.or(String.eq(Core.event_id(event), id), Core.ids_contains(acc, id)), Core.ids_contains(acc, id),
+        Laws.member_absorption(acc, Core.event_id(event), id, present)), present)
+
+def ScanProof.rewrite_result(result: T.MergeResult, +id: String, a: Bool, b: Bool,
+  equality: {a == b : Bool}, proof: Laws.SuccessfulIds(result, id, a)) -> Laws.SuccessfulIds(result, id, b):
+  match result:
+    case T.EventConflict{conflictId}:
+      Unit{}
+    case T.Merged{events}:
+      Equal.trans(Bool, Core.ids_contains(events, id), a, b, proof, equality)
+
+def ScanProof.pick_result(condition: Bool, conflictId: String, result: T.MergeResult, id: String, expected: Bool,
+  proof: Laws.SuccessfulIds(result, id, expected)) ->
+  Laws.SuccessfulIds(Bool.pick(T.MergeResult, condition, T.EventConflict{conflictId}, result), id, expected):
+  match condition:
+    case False{}:
+      proof
+    case True{}:
+      Unit{}
+
+def ScanProof.shuffle(+head: Bool, +tail: Bool, +acc: Bool) ->
+  {Bool.or(tail, Bool.or(head, acc)) == Bool.or(Bool.or(head, tail), acc) : Bool}:
+  Equal.trans(Bool, Bool.or(tail, Bool.or(head, acc)), Bool.or(head, Bool.or(tail, acc)), Bool.or(Bool.or(head, tail), acc),
+    Laws.or_move_left(tail, head, acc), Laws.or_associative(head, tail, acc))
+
+def Laws.scan_preserves_ids(fuel, acc, previous, id, covered):
+  match fuel previous:
+    case Nil{} _:
+      Laws.chronological_sort_preserves_ids(acc, id)
+    case +h <> +t None{}:
+      ScanProof.rewrite_result(Core.scan_ids(t, h <> acc, Some{h}), id,
+        Bool.or(Core.ids_contains(t, id), Core.ids_contains(h <> acc, id)), Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(acc, id)),
+        ScanProof.shuffle(String.eq(Core.event_id(h), id), Core.ids_contains(t, id), Core.ids_contains(acc, id)),
+        Laws.scan_preserves_ids(t, h <> acc, Some{h}, id, Laws.member_self_head(h, acc)))
+    case +h <> +t Some{+p}:
+      +same = String.eq(Core.event_id(h), Core.event_id(p))
+      membership = Pair.fst(
+        {Core.ids_contains(Core.unique_put(h, acc, same), id) == Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(acc, id)) : Bool},
+        {Core.ids_contains(Core.unique_put(h, acc, same), Core.event_id(h)) == True{} : Bool},
+        ScanProof.unique_put_invariant(h, acc, p, id, same, {==}, covered))
+      covered_head = Pair.snd(
+        {Core.ids_contains(Core.unique_put(h, acc, same), id) == Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(acc, id)) : Bool},
+        {Core.ids_contains(Core.unique_put(h, acc, same), Core.event_id(h)) == True{} : Bool},
+        ScanProof.unique_put_invariant(h, acc, p, id, same, {==}, covered))
+      continuation = Laws.scan_preserves_ids(t, Core.unique_put(h, acc, same), Some{h}, id, covered_head)
+      preserved = ScanProof.rewrite_result(Core.scan_ids(t, Core.unique_put(h, acc, same), Some{h}), id,
+        Bool.or(Core.ids_contains(t, id), Core.ids_contains(Core.unique_put(h, acc, same), id)), Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(acc, id)),
+        Equal.trans(Bool,
+          Bool.or(Core.ids_contains(t, id), Core.ids_contains(Core.unique_put(h, acc, same), id)), Bool.or(Core.ids_contains(t, id), Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(acc, id))),
+          Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(acc, id)),
+          Equal.cong(Bool, Bool, member => Bool.or(Core.ids_contains(t, id), member), Core.ids_contains(Core.unique_put(h, acc, same), id),
+            Bool.or(String.eq(Core.event_id(h), id), Core.ids_contains(acc, id)), membership),
+          ScanProof.shuffle(String.eq(Core.event_id(h), id), Core.ids_contains(t, id), Core.ids_contains(acc, id))), continuation)
+      ScanProof.pick_result(Bool.and(same, Bool.not(Core.event_eq(h, p))), Core.event_id(h), Core.scan_ids(t, Core.unique_put(h, acc, same), Some{h}), id,
+        Bool.or(Core.ids_contains(h <> t, id), Core.ids_contains(acc, id)), preserved)
+
+def Laws.merge_preserves_ids(left, right, id):
+  ScanProof.rewrite_result(Core.merge(left, right), id,
+    Bool.or(Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), id), False{}),
+    Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)),
+    Equal.trans(Bool,
+      Bool.or(Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), id), False{}),
+      Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), id), Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)),
+      Laws.or_false_right(Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), id)),
+      Equal.trans(Bool,
+        Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), id), Core.ids_contains(List.append(&2, T.DomainEvent, left, right), id),
+        Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)), Laws.id_sort_preserves_ids(List.append(&2, T.DomainEvent, left, right), id), Laws.ids_append(left, right, id))),
+    Laws.scan_preserves_ids(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), Nil{}, None{}, id, Unit{}))
+
+def Laws.successful_merge_has_exact_input_ids(left, right, output, id, success):
+  %success : Laws.SuccessfulIds(_, id, Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)))
+  Laws.merge_preserves_ids(left, right, id)

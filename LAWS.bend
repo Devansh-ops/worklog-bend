@@ -413,3 +413,126 @@ law future_schema_refused_witness:
 
 law changed_plan_refused_witness:
   {Publication.approved([1, 2], "approved plan", "substituted plan") == False{} : Bool}
+
+law or_associative:
+  for a: Bool
+  for b: Bool
+  for c: Bool
+  {Bool.or(a, Bool.or(b, c)) == Bool.or(Bool.or(a, b), c) : Bool}
+
+law or_commutative:
+  for a: Bool
+  for b: Bool
+  {Bool.or(a, b) == Bool.or(b, a) : Bool}
+
+law or_false_right:
+  for a: Bool
+  {Bool.or(a, False{}) == a : Bool}
+
+law or_move_left:
+  for a: Bool
+  for b: Bool
+  for c: Bool
+  {Bool.or(a, Bool.or(b, c)) == Bool.or(b, Bool.or(a, c)) : Bool}
+
+law ids_append:
+  for xs: List<&2, T.DomainEvent>
+  for +ys: List<&2, T.DomainEvent>
+  for +id: String
+  {Core.ids_contains(List.append(&2, T.DomainEvent, xs, ys), id) == Bool.or(Core.ids_contains(xs, id), Core.ids_contains(ys, id)) : Bool}
+
+law ids_reverse_accumulator:
+  for xs: List<&2, T.DomainEvent>
+  for +acc: List<&2, T.DomainEvent>
+  for +id: String
+  {Core.ids_contains(List.reverse.go(&2, T.DomainEvent, xs, acc), id) == Bool.or(Core.ids_contains(xs, id), Core.ids_contains(acc, id)) : Bool}
+
+def merge_state_ids(state: List<&2, T.DomainEvent> & List<&2, T.DomainEvent> & List<&2, T.DomainEvent>, +id: String) -> Bool:
+  (acc, xs, ys) = state
+  Bool.or(Core.ids_contains(acc, id), Bool.or(Core.ids_contains(xs, id), Core.ids_contains(ys, id)))
+
+def runs_ids(runs: List<&2, List<&2, T.DomainEvent>>, +id: String) -> Bool:
+  match runs:
+    case Nil{}:
+      False{}
+    case h <> t:
+      Bool.or(Core.ids_contains(h, id), runs_ids(t, id))
+
+law ids_concat:
+  for runs: List<&2, List<&2, T.DomainEvent>>
+  for +id: String
+  {Core.ids_contains(List.concat(&2, T.DomainEvent, runs), id) == runs_ids(runs, id) : Bool}
+
+law or_pair_swap:
+  for a: Bool
+  for b: Bool
+  {Bool.or(a, Bool.or(b, False{})) == Bool.or(b, Bool.or(a, False{})) : Bool}
+
+law id_sort_preserves_ids:
+  for xs: List<&2, T.DomainEvent>
+  for +id: String
+  {Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, xs), id) == Core.ids_contains(xs, id) : Bool}
+
+law chronological_sort_preserves_ids:
+  for xs: List<&2, T.DomainEvent>
+  for +id: String
+  {Core.ids_contains(List.sort(~T.DomainEvent, ~Core.event_le, xs), id) == Core.ids_contains(xs, id) : Bool}
+
+law boolean_absorption:
+  for condition: Bool
+  for member: Bool
+  for implication: {condition == True{} : Bool} -> {member == True{} : Bool}
+  {Bool.or(condition, member) == member : Bool}
+
+law member_absorption:
+  for +events: List<&2, T.DomainEvent>
+  for +presentId: String
+  for +id: String
+  for present: {Core.ids_contains(events, presentId) == True{} : Bool}
+  {Bool.or(String.eq(presentId, id), Core.ids_contains(events, id)) == Core.ids_contains(events, id) : Bool}
+
+law member_self_head:
+  for +event: T.DomainEvent
+  for +rest: List<&2, T.DomainEvent>
+  {Core.ids_contains(event <> rest, Core.event_id(event)) == True{} : Bool}
+
+# A scan may omit a same-ID delivery only when its previous ID is already
+# represented by the accumulator. None imposes no premise, inhabited by Unit.
+def PreviousCovered(previous: Maybe<&2, T.DomainEvent>, acc: List<&2, T.DomainEvent>) -> Data:
+  match previous:
+    case None{}:
+      Unit
+    case Some{event}:
+      {Core.ids_contains(acc, Core.event_id(event)) == True{} : Bool}
+
+# Errors make no claim about output membership because they return no events.
+# The public successful_merge_has_exact_input_ids law below extracts the actual
+# output equality from an explicit successful result, not a correctness premise.
+def SuccessfulIds(result: T.MergeResult, id: String, expected: Bool) -> Type:
+  match result:
+    case T.EventConflict{conflictId}:
+      Unit
+    case T.Merged{events}:
+      {Core.ids_contains(events, id) == expected : Bool}
+
+law scan_preserves_ids:
+  for fuel: List<&2, T.DomainEvent>
+  for +acc: List<&2, T.DomainEvent>
+  for previous: Maybe<&2, T.DomainEvent>
+  for +id: String
+  for +covered: PreviousCovered(previous, acc)
+  SuccessfulIds(Core.scan_ids(fuel, acc, previous), id, Bool.or(Core.ids_contains(fuel, id), Core.ids_contains(acc, id)))
+
+law merge_preserves_ids:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for +id: String
+  SuccessfulIds(Core.merge(left, right), id, Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)))
+
+law successful_merge_has_exact_input_ids:
+  for left: List<&2, T.DomainEvent>
+  for right: List<&2, T.DomainEvent>
+  for output: List<&2, T.DomainEvent>
+  for id: String
+  for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  {Core.ids_contains(output, id) == Bool.or(Core.ids_contains(left, id), Core.ids_contains(right, id)) : Bool}
