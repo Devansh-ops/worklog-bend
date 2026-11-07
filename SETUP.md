@@ -1,15 +1,14 @@
 # Setup
 
 Two things to decide: **where your log lives** (a git repo you own) and **how much AI you want**
-(possibly none). Ten minutes, no installs.
+(possibly none). The rebuilt app runs locally with Node, or from your own static host.
 
 ---
 
 ## 1. Get a GitHub token
 
-The app talks to GitHub's REST API directly from your browser. There is no backend, and browser-only
-OAuth is impossible against GitHub (its login endpoints send no CORS headers), so the credential is a
-personal access token.
+The browser adapter calls GitHub's REST API using a personal access token.
+The optional terminal setup uses your existing authenticated gh session.
 
 **If your data repo already exists** — a [fine-grained token][fg] is the tighter option:
 
@@ -18,8 +17,12 @@ personal access token.
 3. Permissions → Repository permissions → **Contents: Read and write**.
 4. Set an expiry you're happy to renew. Generate, and copy the token.
 
-**If you want the app to create the repo for you** — you need a [classic token][cl] with the `repo`
-scope. Fine-grained tokens can only reach repos that already exist, so they cannot create one.
+**If you want the browser to create the data repository**, use a token with the
+required creation permissions. GitHub documents fine-grained Administration or
+Repository creation write permission, or classic `repo` scope for private creation.
+See the [current GitHub endpoint documentation](https://docs.github.com/en/rest/repos/repos#create-a-repository-for-the-authenticated-user).
+Creating it first with the terminal flow below lets you then restrict browser
+access to that one repository.
 
 Either token goes into Settings in the app. It is stored in `localStorage` on that browser only,
 never committed, and never sent anywhere except `api.github.com`.
@@ -29,7 +32,10 @@ never committed, and never sent anywhere except `api.github.com`.
 
 ## 2. Point the app at your repo
 
-Open <https://tanmayagrawal21.github.io/worklog/>. The first-run wizard asks for:
+In this checkout, run `npm --loglevel verbose start` and open the displayed local
+URL. For an ephemeral preview, run `npm --loglevel verbose start -- --demo`.
+The upstream public demo runs the original application. The rebuilt app's
+first-run wizard asks for:
 
 - **Data repo** — `your-username/worklog-data`, or any repo you like. It can be one you already use.
 - **Visibility**, if it doesn't exist yet — **Private** is the recommended default. Public means
@@ -48,14 +54,15 @@ Settings → AI. Four options; the default is the first.
 **No AI.** The board and the changelog, nothing sent anywhere. Everything except the summary and
 brain-dump panes works exactly the same.
 
-**On my machine.** Nothing leaves your computer.
+**On my machine.** Task context stays local when the configured endpoint is on this machine. Remote overrides require disclosure and consent.
 
 - *In this browser (WebGPU)* — downloads an open model into the browser and runs it on your GPU.
-  Needs a WebGPU-capable browser (recent Chrome or Edge; Safari 18+) and a few GB of disk for the
-  cached weights. First load is a large download; after that it's offline.
+  Needs a WebGPU-capable browser and enough disk for the selected model. Runtime
+  capability checks report unavailable devices. See STATUS.md for executed
+  checks; real GPU inference was not exercised on this machine.
 - *Ollama* — `ollama serve`, then set the endpoint to `http://localhost:11434/v1`. Ollama needs to
-  allow the page's origin: `OLLAMA_ORIGINS='https://tanmayagrawal21.github.io' ollama serve`
-  (or `http://localhost:8000` if you're running the app locally).
+  allow the exact origin printed by the local app server, or your own static
+  deployment origin. Configure the server for that origin before calling it.
 - *llama.cpp server* / *LM Studio* — same idea; both expose an OpenAI-compatible `/v1`. Start them
   with CORS enabled (`llama-server --host 127.0.0.1 ... ` behind a proxy that adds the header, or
   LM Studio's "Enable CORS" toggle).
@@ -87,18 +94,18 @@ There is no recovery: forget the passphrase and you re-enter your tokens.
 
 If you prefer to create the repo yourself, or want to script it for a team:
 
-```sh
-./scripts/setup.sh                          # private repo named <you>/worklog-data
-./scripts/setup.sh --repo me/journal        # a name you pick
-./scripts/setup.sh --public                 # public instead
-./scripts/setup.sh --no-examples            # skip the three example tasks
-./scripts/setup.sh --dry-run                # print the plan and every file, write nothing
-./scripts/setup.sh --yes                    # skip the confirmation prompt
+```powershell
+node scripts/setup.mjs                          # private repo named <you>/worklog-data
+node scripts/setup.mjs --repo me/journal        # a name you pick
+node scripts/setup.mjs --public                 # public instead
+node scripts/setup.mjs --no-examples            # skip the three example tasks
+node scripts/setup.mjs --dry-run                # print the plan and every file, write nothing
+node scripts/setup.mjs --yes                    # skip the confirmation prompt
 ```
 
 It needs the [`gh` CLI](https://cli.github.com) authenticated (`gh auth login`), creates the repo if
 it's missing, and commits the same starter files the in-app wizard would — literally the same code
-renders them, so the two paths can't drift. Like the app, it shows you the plan and waits for a `y`
+renders them. Both paths have exact-plan regression checks. Like the app, it shows you the plan and waits for a `y`
 before creating anything. If the repo already holds a log it stops rather than guessing at a merge;
 open the app and point it at the repo instead. It never touches tokens — you still paste one into
 the app.
@@ -125,7 +132,7 @@ over plain HTTP — which is what this gives you.
 ## Hosting your own copy of the app
 
 The hosted link is convenient but it is someone else's Pages site. To own the whole thing: use the
-[app repo](https://github.com/tanmayagrawal21/worklog) as a template, enable Pages on your copy
+[rebuild repository](https://github.com/Devansh-ops/worklog-bend) as a template, enable Pages on your copy
 (Settings → Pages → `main`, `/ (root)`), and use your own URL instead. No configuration — the app
 reads its own location at runtime. Your data repo is unaffected either way; the two are separate,
 and you can point any copy of the app at the same data repo.
