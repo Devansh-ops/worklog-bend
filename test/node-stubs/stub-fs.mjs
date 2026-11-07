@@ -11,6 +11,10 @@ const FILES = new Map([
   ['/pkgsecret/x', 'sibling whose name starts with the root path'],
 ]);
 export const promises = {
+  async realpath(p) {
+    if (DIRS.has(p) || FILES.has(p)) return p;
+    const err = new Error(`ENOENT: ${p}`); err.code = 'ENOENT'; throw err;
+  },
   async stat(p) {
     if (DIRS.has(p)) return { isDirectory: () => true, isFile: () => false };
     if (FILES.has(p)) return { isDirectory: () => false, isFile: () => true };

@@ -45,14 +45,15 @@ function parseArgs(argv) {
     else if (a === '-v' || a === '--version') opts.version = true;
     else if (a === '--no-open') opts.open = false;
     else if (a === '--demo') opts.demo = true;
-    else if (a.startsWith('--port')) opts.port = Number(val());
+    else if (a === '--port' || a.startsWith('--port=')) opts.port = Number(val());
     else if (a === '-p') opts.port = Number(argv[++i]);
-    else if (a.startsWith('--host')) opts.host = val();
+    else if (a === '--host' || a.startsWith('--host=')) opts.host = val();
     else return { error: `unknown option: ${a}` };
   }
   if (!Number.isInteger(opts.port) || opts.port < 0 || opts.port > 65535) {
     return { error: `--port wants a number between 0 and 65535, got ${opts.port}` };
   }
+  if (typeof opts.host !== 'string' || !opts.host.trim()) return { error: '--host wants a hostname or IP address' };
   return opts;
 }
 
@@ -74,7 +75,8 @@ Hosted copy, if you would rather not run anything:
 
 /**
  * Resolve a URL path to a file inside ROOT, or null. `path.resolve` collapses
- * ../ before the prefix check, so an encoded traversal cannot escape the package.
+ * ../ before the lexical check. Real paths also keep symbolic links and Windows
+ * junctions from serving files outside the package directory.
  */
 async function resolveFile(urlPath) {
   let rel;
@@ -86,9 +88,12 @@ async function resolveFile(urlPath) {
   const abs = path.resolve(ROOT, '.' + (rel.startsWith('/') ? rel : '/' + rel));
   if (abs !== ROOT && !abs.startsWith(ROOT + path.sep)) return null;
   try {
-    const st = await fs.stat(abs);
+    const physicalRoot = await fs.realpath(ROOT);
+    const physical = await fs.realpath(abs);
+    if (physical !== physicalRoot && !physical.startsWith(physicalRoot + path.sep)) return null;
+    const st = await fs.stat(physical);
     if (st.isDirectory()) return resolveFile(path.posix.join(rel, 'index.html'));
-    return st.isFile() ? abs : null;
+    return st.isFile() ? physical : null;
   } catch {
     return null;
   }
