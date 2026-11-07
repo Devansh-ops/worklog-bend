@@ -4,6 +4,7 @@ import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
+import ./proof/Membership.bend as Membership
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -18,6 +19,9 @@ def Laws.reminder_complete_day_witness():
   {==}
 
 def Laws.collision_refusal_witness():
+  {==}
+
+def Laws.complete_content_merge_witness():
   {==}
 
 def Laws.word_order_reflexive(n, w):
@@ -1456,3 +1460,128 @@ def Laws.adjacent_content_conflict_is_rejected(event, previous, rest, acc, sameI
 def Laws.inconsistent_events_exist():
   (Laws.collision_a(), (Laws.collision_b(), ({==},
     same => Laws.false_is_not_true(Equal.cong(T.DomainEvent, Bool, value => Core.event_eq(value, Laws.collision_b()), Laws.collision_a(), Laws.collision_b(), same)))))
+
+def Laws.exact_membership_bridge(events, target):
+  match events:
+    case Nil{}:
+      {==}
+    case +h <> t:
+      Equal.cong(Bool, Bool, member => Bool.or(Core.event_eq(h, target), member),
+        Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, t), Core.exact_contains(t, target), Laws.exact_membership_bridge(t, target))
+
+def Laws.id_sort_preserves_exact_events(events, target):
+  Equal.trans(Bool,
+    Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, events), target), Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_id_le, events)), Core.exact_contains(events, target),
+    Equal.sym(Bool, Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_id_le, events)), Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, events), target), Laws.exact_membership_bridge(List.sort(~T.DomainEvent, ~Core.event_id_le, events), target)),
+    Equal.trans(Bool,
+      Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_id_le, events)), Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, events), Core.exact_contains(events, target),
+      Membership.sort(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, ~Core.event_id_le, target, events), Laws.exact_membership_bridge(events, target)))
+
+def Laws.chronological_sort_preserves_exact_events(events, target):
+  Equal.trans(Bool,
+    Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_le, events), target), Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_le, events)), Core.exact_contains(events, target),
+    Equal.sym(Bool, Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_le, events)), Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_le, events), target), Laws.exact_membership_bridge(List.sort(~T.DomainEvent, ~Core.event_le, events), target)),
+    Equal.trans(Bool,
+      Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, List.sort(~T.DomainEvent, ~Core.event_le, events)), Membership.any(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, target, events), Core.exact_contains(events, target),
+      Membership.sort(~T.DomainEvent, ~T.DomainEvent, ~Laws.event_matches, ~Core.event_le, target, events), Laws.exact_membership_bridge(events, target)))
+
+def Laws.exact_append(xs, ys, target):
+  match xs:
+    case Nil{}:
+      {==}
+    case +h <> +t:
+      Equal.trans(Bool,
+        Core.exact_contains(List.append(&2, T.DomainEvent, h <> t, ys), target), Bool.or(Core.event_eq(h, target), Bool.or(Core.exact_contains(t, target), Core.exact_contains(ys, target))),
+        Bool.or(Core.exact_contains(h <> t, target), Core.exact_contains(ys, target)),
+        Equal.cong(Bool, Bool, member => Bool.or(Core.event_eq(h, target), member), Core.exact_contains(List.append(&2, T.DomainEvent, t, ys), target),
+          Bool.or(Core.exact_contains(t, target), Core.exact_contains(ys, target)), Laws.exact_append(t, ys, target)),
+        Laws.or_associative(Core.event_eq(h, target), Core.exact_contains(t, target), Core.exact_contains(ys, target)))
+
+def Laws.exact_member_absorption(events, present, target, covered):
+  Laws.boolean_absorption(Core.event_eq(present, target), Core.exact_contains(events, target),
+    same => Equal.trans(Bool, Core.exact_contains(events, target), Core.exact_contains(events, present), True{},
+      Equal.cong(T.DomainEvent, Bool, event => Core.exact_contains(events, event), target, present,
+        Equal.sym(T.DomainEvent, present, target, Laws.event_equality_sound(present, target, same))), covered))
+
+def Laws.exact_member_self_head(event, rest):
+  Equal.cong(Bool, Bool, same => Bool.or(same, Core.exact_contains(rest, event)), Core.event_eq(event, event), True{}, Laws.event_equality_reflexive(event))
+
+def ScanProof.rewrite_contents(result: T.MergeResult, +target: T.DomainEvent, a: Bool, b: Bool,
+  equality: {a == b : Bool}, proof: Laws.SuccessfulContents(result, target, a)) -> Laws.SuccessfulContents(result, target, b):
+  match result:
+    case T.EventConflict{conflictId}:
+      Unit{}
+    case T.Merged{events}:
+      Equal.trans(Bool, Core.exact_contains(events, target), a, b, proof, equality)
+
+def ExactScan.step(+h: T.DomainEvent, +tail: List<&2, T.DomainEvent>, +acc: List<&2, T.DomainEvent>, +previous: T.DomainEvent, +target: T.DomainEvent, same: Bool, equal: Bool,
+  actual_equal: {equal == Core.event_eq(h, previous) : Bool}, covered: {Core.exact_contains(acc, previous) == True{} : Bool},
+  continuation: {Core.exact_contains(Core.unique_put(h, acc, same), h) == True{} : Bool} -> Laws.SuccessfulContents(Core.scan_ids(tail, Core.unique_put(h, acc, same), Some{h}), target, Bool.or(Core.exact_contains(tail, target), Core.exact_contains(Core.unique_put(h, acc, same), target)))) ->
+  Laws.SuccessfulContents(Bool.pick(T.MergeResult, Bool.and(same, Bool.not(equal)), T.EventConflict{Core.event_id(h)}, Core.scan_ids(tail, Core.unique_put(h, acc, same), Some{h})), target, Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target))):
+  match same equal:
+    case False{} False{}:
+      ScanProof.rewrite_contents(Core.scan_ids(tail, h <> acc, Some{h}), target,
+        Bool.or(Core.exact_contains(tail, target), Core.exact_contains(h <> acc, target)), Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target)),
+        ScanProof.shuffle(Core.event_eq(h, target), Core.exact_contains(tail, target), Core.exact_contains(acc, target)),
+        continuation(Laws.exact_member_self_head(h, acc)))
+    case False{} True{}:
+      ScanProof.rewrite_contents(Core.scan_ids(tail, h <> acc, Some{h}), target,
+        Bool.or(Core.exact_contains(tail, target), Core.exact_contains(h <> acc, target)), Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target)),
+        ScanProof.shuffle(Core.event_eq(h, target), Core.exact_contains(tail, target), Core.exact_contains(acc, target)),
+        continuation(Laws.exact_member_self_head(h, acc)))
+    case True{} False{}:
+      Unit{}
+    case True{} True{}:
+      same_event = Laws.event_equality_sound(h, previous, Equal.sym(Bool, True{}, Core.event_eq(h, previous), actual_equal))
+      +covered_head = Equal.trans(Bool, Core.exact_contains(acc, h), Core.exact_contains(acc, previous), True{},
+        Equal.cong(T.DomainEvent, Bool, event => Core.exact_contains(acc, event), h, previous, same_event), covered)
+      ScanProof.rewrite_contents(Core.scan_ids(tail, acc, Some{h}), target,
+        Bool.or(Core.exact_contains(tail, target), Core.exact_contains(acc, target)), Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target)),
+        Equal.trans(Bool,
+          Bool.or(Core.exact_contains(tail, target), Core.exact_contains(acc, target)), Bool.or(Core.exact_contains(tail, target), Bool.or(Core.event_eq(h, target), Core.exact_contains(acc, target))),
+          Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target)),
+          Equal.cong(Bool, Bool, member => Bool.or(Core.exact_contains(tail, target), member), Core.exact_contains(acc, target), Bool.or(Core.event_eq(h, target), Core.exact_contains(acc, target)),
+            Equal.sym(Bool, Bool.or(Core.event_eq(h, target), Core.exact_contains(acc, target)), Core.exact_contains(acc, target), Laws.exact_member_absorption(acc, h, target, covered_head))),
+          ScanProof.shuffle(Core.event_eq(h, target), Core.exact_contains(tail, target), Core.exact_contains(acc, target))), continuation(covered_head))
+
+def Laws.scan_preserves_exact_events(fuel, acc, previous, target, covered):
+  match fuel previous:
+    case Nil{} _:
+      Laws.chronological_sort_preserves_exact_events(acc, target)
+    case +h <> +tail None{}:
+      ScanProof.rewrite_contents(Core.scan_ids(tail, h <> acc, Some{h}), target,
+        Bool.or(Core.exact_contains(tail, target), Core.exact_contains(h <> acc, target)), Bool.or(Core.exact_contains(h <> tail, target), Core.exact_contains(acc, target)),
+        ScanProof.shuffle(Core.event_eq(h, target), Core.exact_contains(tail, target), Core.exact_contains(acc, target)),
+        Laws.scan_preserves_exact_events(tail, h <> acc, Some{h}, target, Laws.exact_member_self_head(h, acc)))
+    case +h <> +tail Some{+p}:
+      ExactScan.step(h, tail, acc, p, target, String.eq(Core.event_id(h), Core.event_id(p)), Core.event_eq(h, p), {==}, covered,
+        next_covered => Laws.scan_preserves_exact_events(tail, Core.unique_put(h, acc, String.eq(Core.event_id(h), Core.event_id(p))), Some{h}, target, next_covered))
+
+def Laws.merge_preserves_exact_events(left, right, target):
+  ScanProof.rewrite_contents(Core.merge(left, right), target,
+    Bool.or(Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), target), False{}),
+    Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)),
+    Equal.trans(Bool,
+      Bool.or(Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), target), False{}), Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), target),
+      Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)),
+      Laws.or_false_right(Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), target)),
+      Equal.trans(Bool, Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), target), Core.exact_contains(List.append(&2, T.DomainEvent, left, right), target),
+        Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)), Laws.id_sort_preserves_exact_events(List.append(&2, T.DomainEvent, left, right), target), Laws.exact_append(left, right, target))),
+    Laws.scan_preserves_exact_events(List.sort(~T.DomainEvent, ~Core.event_id_le, List.append(&2, T.DomainEvent, left, right)), Nil{}, None{}, target, Unit{}))
+
+def Laws.successful_merge_has_exact_input_events(left, right, output, target, success):
+  %success : Laws.SuccessfulContents(_, target, Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)))
+  Laws.merge_preserves_exact_events(left, right, target)
+
+def Laws.semantically_absent_has_no_exact_match(events, target, absent):
+  match events:
+    case Nil{}:
+      {==}
+    case +h <> t:
+      (different, absent_tail) = absent
+      Equal.trans(Bool, Core.exact_contains(h <> t, target), Bool.or(False{}, Core.exact_contains(t, target)), False{},
+        Equal.cong(Bool, Bool, same => Bool.or(same, Core.exact_contains(t, target)), Core.event_eq(h, target), False{}, Laws.event_inequality_is_detected(h, target, different)),
+        Laws.semantically_absent_has_no_exact_match(t, target, absent_tail))
+
+def Laws.semantically_unapproved_event_remains_pending(event, rest, committed, absent):
+  Laws.unapproved_event_remains_pending(event, rest, committed, Laws.semantically_absent_has_no_exact_match(committed, event, absent))

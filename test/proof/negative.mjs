@@ -53,7 +53,7 @@ const mutations = [
     file: 'Core.bend',
     source: 'case True{}:\n      xs\n    case False{}:\n      e <> xs',
     replacement: 'case True{}:\n      xs\n    case False{}:\n      xs',
-    failure: /ScanProof.unique_put_invariant|scan_preserves_ids|successful_merge_has_exact_input_ids/,
+    failure: /complete_content_merge_witness|ScanProof.unique_put_invariant|scan_preserves_ids|successful_merge_has_exact_input_ids/,
   },
   {
     name: 'disabled reminder fires',
@@ -83,6 +83,13 @@ const mutations = [
     replacement: 'False{}',
     failure: /collision_refusal_witness/,
   },
+  {
+    name: 'complete event content corrupted while ID survives',
+    file: 'Core.bend',
+    source: 'def unique_put(e: T.DomainEvent, xs: List<&2, T.DomainEvent>, exists: Bool) -> List<&2, T.DomainEvent>:\n  match exists:\n    case True{}:\n      xs\n    case False{}:\n      e <> xs',
+    replacement: 'def mutation_tamper(event: T.DomainEvent) -> T.DomainEvent:\n  match event:\n    case T.Ev{id, ts, day, payload, canonical}:\n      T.Ev{id, ts, day, payload, "MUTATED"}\n\ndef unique_put(e: T.DomainEvent, xs: List<&2, T.DomainEvent>, exists: Bool) -> List<&2, T.DomainEvent>:\n  match exists:\n    case True{}:\n      xs\n    case False{}:\n      mutation_tamper(e) <> xs',
+    failure: /complete_content_merge_witness/,
+  },
 ];
 await mkdir(join(root, 'tmp'), { recursive: true });
 for (const mutation of mutations) {
@@ -90,8 +97,10 @@ for (const mutation of mutations) {
   assert.equal(normalized.split(mutation.source).length, 2, `Mutation must match exactly once: ${mutation.name}`);
   const target = await mkdtemp(join(root, 'tmp/proof-negative-'));
   await mkdir(join(target, 'bend'));
+  await mkdir(join(target, 'proof'));
   const modules = (await readdir(join(root, 'bend'))).filter(name => name.endsWith('.bend')).map(name => `bend/${name}`);
-  for (const name of ['LAWS.bend', 'PROOF.bend', ...modules]) {
+  const proofModules = (await readdir(join(root, 'proof'))).filter(name => name.endsWith('.bend')).map(name => `proof/${name}`);
+  for (const name of ['LAWS.bend', 'PROOF.bend', ...modules, ...proofModules]) {
     await writeFile(join(target, name), await readFile(join(root, name)));
   }
   await writeFile(join(target, 'bend', mutation.file), normalized.replace(mutation.source, mutation.replacement));

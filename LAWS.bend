@@ -3,6 +3,7 @@ import ./bend/Types.bend as T
 import ./bend/Core.bend as Core
 import ./bend/Publication.bend as Publication
 import ./bend/Reports.bend as Reports
+import ./proof/Membership.bend as Membership
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -772,3 +773,104 @@ law inconsistent_events_exist:
 
 law collision_refusal_witness:
   {Core.scan_ids([collision_b()], [collision_a()], Some{collision_a()}) == T.EventConflict{"e-collision"} : T.MergeResult}
+
+def event_matches(target: T.DomainEvent, event: T.DomainEvent) -> Bool:
+  Core.event_eq(event, target)
+
+law exact_membership_bridge:
+  for events: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  {Membership.any(~T.DomainEvent, ~T.DomainEvent, ~event_matches, target, events) == Core.exact_contains(events, target) : Bool}
+
+law id_sort_preserves_exact_events:
+  for +events: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  {Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_id_le, events), target) == Core.exact_contains(events, target) : Bool}
+
+law chronological_sort_preserves_exact_events:
+  for +events: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  {Core.exact_contains(List.sort(~T.DomainEvent, ~Core.event_le, events), target) == Core.exact_contains(events, target) : Bool}
+
+law exact_append:
+  for xs: List<&2, T.DomainEvent>
+  for +ys: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  {Core.exact_contains(List.append(&2, T.DomainEvent, xs, ys), target) == Bool.or(Core.exact_contains(xs, target), Core.exact_contains(ys, target)) : Bool}
+
+law exact_member_absorption:
+  for +events: List<&2, T.DomainEvent>
+  for +present: T.DomainEvent
+  for +target: T.DomainEvent
+  for covered: {Core.exact_contains(events, present) == True{} : Bool}
+  {Bool.or(Core.event_eq(present, target), Core.exact_contains(events, target)) == Core.exact_contains(events, target) : Bool}
+
+law exact_member_self_head:
+  for +event: T.DomainEvent
+  for +rest: List<&2, T.DomainEvent>
+  {Core.exact_contains(event <> rest, event) == True{} : Bool}
+
+def ExactPreviousCovered(previous: Maybe<&2, T.DomainEvent>, acc: List<&2, T.DomainEvent>) -> Data:
+  match previous:
+    case None{}:
+      Unit
+    case Some{event}:
+      {Core.exact_contains(acc, event) == True{} : Bool}
+
+def SuccessfulContents(result: T.MergeResult, target: T.DomainEvent, expected: Bool) -> Type:
+  match result:
+    case T.EventConflict{conflictId}:
+      Unit
+    case T.Merged{events}:
+      {Core.exact_contains(events, target) == expected : Bool}
+
+law scan_preserves_exact_events:
+  for fuel: List<&2, T.DomainEvent>
+  for +acc: List<&2, T.DomainEvent>
+  for previous: Maybe<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  for covered: ExactPreviousCovered(previous, acc)
+  SuccessfulContents(Core.scan_ids(fuel, acc, previous), target, Bool.or(Core.exact_contains(fuel, target), Core.exact_contains(acc, target)))
+
+law merge_preserves_exact_events:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  SuccessfulContents(Core.merge(left, right), target, Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)))
+
+law successful_merge_has_exact_input_events:
+  for left: List<&2, T.DomainEvent>
+  for right: List<&2, T.DomainEvent>
+  for output: List<&2, T.DomainEvent>
+  for target: T.DomainEvent
+  for success: {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
+  {Core.exact_contains(output, target) == Bool.or(Core.exact_contains(left, target), Core.exact_contains(right, target)) : Bool}
+
+def SemanticallyAbsent(events: List<&2, T.DomainEvent>, +target: T.DomainEvent) -> Type:
+  match events:
+    case Nil{}:
+      Unit
+    case h <> t:
+      {h != target : T.DomainEvent} & SemanticallyAbsent(t, target)
+
+law semantically_absent_has_no_exact_match:
+  for events: List<&2, T.DomainEvent>
+  for +target: T.DomainEvent
+  for absent: SemanticallyAbsent(events, target)
+  {Core.exact_contains(events, target) == False{} : Bool}
+
+law semantically_unapproved_event_remains_pending:
+  for +event: T.DomainEvent
+  for rest: List<&2, T.DomainEvent>
+  for +committed: List<&2, T.DomainEvent>
+  for absent: SemanticallyAbsent(committed, event)
+  {Core.acknowledge(event <> rest, committed, True{}) == event <> Core.acknowledge(rest, committed, True{}) : List<&2, T.DomainEvent>}
+
+def content_a() -> T.DomainEvent:
+  T.Ev{"e-a", "2026-11-08T00:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "A"}, "{\"id\":\"e-a\",\"taskId\":\"T-aaa111\",\"text\":\"A\",\"ts\":\"2026-11-08T00:00:00.000Z\",\"type\":\"task.note\"}"}
+
+def content_b() -> T.DomainEvent:
+  T.Ev{"e-b", "2026-11-08T00:00:00.000Z", "2026-11-08", T.Noted{"T-aaa111", "B"}, "{\"id\":\"e-b\",\"taskId\":\"T-aaa111\",\"text\":\"B\",\"ts\":\"2026-11-08T00:00:00.000Z\",\"type\":\"task.note\"}"}
+
+law complete_content_merge_witness:
+  {Core.merge([content_a()], [content_b()]) == T.Merged{[content_a(), content_b()]} : T.MergeResult}
