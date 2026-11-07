@@ -13,6 +13,9 @@ import ./proof/Canonical.bend as Canonical
 import ./bend/Planning.bend as Planning
 import ./proof/PlanningLaws.bend as PlanningLaws
 import ./proof/Replay.bend as Replay
+import ./proof/Consistent.bend as Consistent
+import ./proof/Algebra.bend as Algebra
+import ./proof/HistoryPrivacy.bend as HistoryPrivacy
 
 def Laws.future_schema_refused_witness():
   {==}
@@ -1783,3 +1786,36 @@ def Laws.recovered_private_tombstone_is_absent_from_model_context():
 
 def Laws.recovered_private_tombstone_is_absent_from_history_context():
   Replay.private_history_witness()
+
+def Laws.merge_commutative(left, right, valid):
+  Algebra.merge_commutative(left, right, valid)
+
+def Laws.merge_idempotent(events, valid):
+  Algebra.merge_idempotent(events, valid)
+
+def Laws.merge_associative(xs, ys, zs, valid):
+  Algebra.merge_associative(xs, ys, zs, valid)
+
+def Laws.nonempty_commutativity_application():
+  Algebra.nonempty_commutativity_application()
+
+def Laws.nonempty_associativity_application():
+  Algebra.nonempty_associativity_application()
+
+def Laws.nonempty_idempotence_application():
+  Algebra.nonempty_idempotence_application()
+
+def Laws.duplicate_sequence_normalizes_to_canonical_set():
+  Algebra.duplicate_sequence_normalizes_to_canonical_set()
+
+def Laws.historical_context_uses_only_eligible_targets_and_note_policy(events, state, sendNotes, start, end):
+  HistoryPrivacy.history(events, state, sendNotes, start, end)
+
+def Laws.reconciliation_is_commutative(left, right, valid):
+  Equal.cong(T.MergeResult, T.ReplayResult, result => Core.replay_merged(result), Core.merge(left, right), Core.merge(right, left), Algebra.merge_commutative(left, right, valid))
+
+def Laws.reconciliation_is_idempotent(events, valid):
+  Equal.cong(T.MergeResult, T.ReplayResult, result => Core.replay_merged(result), Core.merge(events, events), Core.merge(events, Nil{}), Algebra.merge_idempotent(events, valid))
+
+def Laws.consistent_event_union_always_has_a_merge_output(left, right, valid):
+  Consistent.merge_success(left, right, valid)

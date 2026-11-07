@@ -90,3 +90,12 @@ law accepted_complete_command_exists:
   {Core.stage([clock_create()], clock_forward_note()) == T.StageAccepted{clock_forward_note()} : T.StageResult}
 def accepted_complete_command_exists():
   {==}
+
+def public_history_state() -> T.State:
+  T.State{[T.Task{"T-aaa111", "Synthetic public", T.SProgress{}, T.PNormal{}, Nil{}, False{}, False{}, "2026-11-08T00:00:00.000Z", "2026-11-08T00:00:00.000Z", None{}, Nil{}}], Nil{}, Nil{}, Nil{}, True{}}
+
+law historical_notes_off_excludes_note_delivery:
+  {Core.context_events(public_history_state(), [a()], False{}, "2026-11-08", "2026-11-08") == Nil{} : List<&2, T.ContextEvent>}
+
+def historical_notes_off_excludes_note_delivery():
+  {==}

@@ -23,6 +23,13 @@ const witnesses = 'test/proof/mutation-witnesses.bend';
 check(root, 0, /ALL PROOFS CHECK/, witnesses);
 const mutations = [
   {
+    name: 'historical notes ignore note policy',
+    file: 'Core.bend',
+    source: 'Bool.and(sendNotes, eligible_target(state, taskId))',
+    replacement: 'eligible_target(state, taskId)',
+    failure: /historical_notes_off_excludes_note_delivery/,
+  },
+  {
     name: 'notes-off leak',
     file: 'Core.bend',
     source: 'case False{}:\n      Nil{}\n    case True{}:\n      notes',

@@ -12,6 +12,9 @@ import ./proof/Canonical.bend as Canonical
 import ./bend/Planning.bend as Planning
 import ./proof/PlanningLaws.bend as PlanningLaws
 import ./proof/Replay.bend as Replay
+import ./proof/Consistent.bend as Consistent
+import ./proof/Algebra.bend as Algebra
+import ./proof/HistoryPrivacy.bend as HistoryPrivacy
 
 # Supporting order facts for canonical event identity and sorting.
 # These are not substitutes for the full merge membership/algebra obligations.
@@ -1081,3 +1084,63 @@ law recovered_private_tombstone_is_absent_from_model_context:
 
 law recovered_private_tombstone_is_absent_from_history_context:
   {Replay.history_projection(Core.merge(Replay.shuffled_history(), Nil{}), True{}, "2026-11-01", "2026-11-01") == Nil{} : List<&2, T.ContextEvent>}
+
+law merge_commutative:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for valid: {Consistent.consistent(List.append(&2, T.DomainEvent, left, right)) == True{} : Bool}
+  {Core.merge(left, right) == Core.merge(right, left) : T.MergeResult}
+
+law merge_idempotent:
+  for +events: List<&2, T.DomainEvent>
+  for valid: {Consistent.consistent(events) == True{} : Bool}
+  {Core.merge(events, events) == Core.merge(events, Nil{}) : T.MergeResult}
+
+law merge_associative:
+  for +xs: List<&2, T.DomainEvent>
+  for +ys: List<&2, T.DomainEvent>
+  for +zs: List<&2, T.DomainEvent>
+  for +valid: {Consistent.consistent(List.append(&2, T.DomainEvent, xs, List.append(&2, T.DomainEvent, ys, zs))) == True{} : Bool}
+  {Algebra.merge_after_left(Core.merge(xs, ys), zs) == Algebra.merge_after_right(xs, Core.merge(ys, zs)) : T.MergeResult}
+
+law nonempty_commutativity_application:
+  {Core.merge([Consistent.witness_b(), Consistent.witness_a()], [Consistent.witness_a()]) ==
+    Core.merge([Consistent.witness_a()], [Consistent.witness_b(), Consistent.witness_a()]) : T.MergeResult}
+
+law nonempty_associativity_application:
+  {Algebra.merge_after_left(Core.merge([Consistent.witness_b()], [Consistent.witness_a()]), [Consistent.witness_b(), Consistent.witness_a()]) ==
+    Algebra.merge_after_right([Consistent.witness_b()], Core.merge([Consistent.witness_a()], [Consistent.witness_b(), Consistent.witness_a()])) : T.MergeResult}
+
+law nonempty_idempotence_application:
+  {Core.merge([Consistent.witness_b(), Consistent.witness_a(), Consistent.witness_a()], [Consistent.witness_b(), Consistent.witness_a(), Consistent.witness_a()]) ==
+    Core.merge([Consistent.witness_b(), Consistent.witness_a(), Consistent.witness_a()], Nil{}) : T.MergeResult}
+
+law duplicate_sequence_normalizes_to_canonical_set:
+  {Core.merge([Consistent.witness_b(), Consistent.witness_a(), Consistent.witness_a()], [Consistent.witness_b(), Consistent.witness_a(), Consistent.witness_a()]) ==
+    T.Merged{[Consistent.witness_a(), Consistent.witness_b()]} : T.MergeResult}
+
+law historical_context_uses_only_eligible_targets_and_note_policy:
+  for events: List<&2, T.DomainEvent>
+  for +state: T.State
+  for +sendNotes: Bool
+  for +start: String
+  for +end: String
+  {HistoryPrivacy.safe_list(state, Core.context_events(state, events, sendNotes, start, end), sendNotes) == True{} : Bool}
+
+law reconciliation_is_commutative:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for valid: {Consistent.consistent(List.append(&2, T.DomainEvent, left, right)) == True{} : Bool}
+  {Core.reconcile(left, right) == Core.reconcile(right, left) : T.ReplayResult}
+
+law reconciliation_is_idempotent:
+  for +events: List<&2, T.DomainEvent>
+  for valid: {Consistent.consistent(events) == True{} : Bool}
+  {Core.reconcile(events, events) == Core.replay(events) : T.ReplayResult}
+
+law consistent_event_union_always_has_a_merge_output:
+  for +left: List<&2, T.DomainEvent>
+  for +right: List<&2, T.DomainEvent>
+  for valid: {Consistent.consistent(List.append(&2, T.DomainEvent, left, right)) == True{} : Bool}
+  exs output: List<&2, T.DomainEvent>
+  {Core.merge(left, right) == T.Merged{output} : T.MergeResult}
