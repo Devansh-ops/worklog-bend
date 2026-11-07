@@ -1,0 +1,24 @@
+{
+  "fixtureVersion": 1,
+  "status": "proposed expectations; synthetic data only",
+  "privacy": {
+    "tasks": [{"id":"T-aaa111","title":"Public work","status":"todo","private":false,"deleted":false,"notes":[{"eventId":"e-note-public","ts":"2026-11-01T09:30:00.000Z","text":"CANARY_AUTOMATIC_NOTE"}]},{"id":"T-bbb222","title":"CANARY_PRIVATE_TITLE","status":"todo","private":true,"deleted":true,"notes":[]}],
+    "history": [{"id":"e-note-private","ts":"2026-11-01T09:00:00.000Z","type":"task.note","taskId":"T-bbb222","text":"CANARY_PRIVATE_HISTORY"},{"id":"e-old-report","ts":"2026-11-01T18:00:00.000Z","type":"standup.set","date":"2026-11-01","kind":"evening","text":"CANARY_UNPROVEN_DERIVED_TEXT"}],
+    "previousSummary": {"headline":"CANARY_UNPROVEN_OLD_HEADLINE"},
+    "includeNotes": false,
+    "explicitFreeText": "CANARY_EXPLICIT_FREE_TEXT",
+    "expect": {"eligibleTaskIds":["T-aaa111"],"absentAutomaticStrings":["CANARY_AUTOMATIC_NOTE","CANARY_PRIVATE_TITLE","CANARY_PRIVATE_HISTORY","CANARY_UNPROVEN_DERIVED_TEXT","CANARY_UNPROVEN_OLD_HEADLINE"],"verbatimDisclosedFreeText":"CANARY_EXPLICIT_FREE_TEXT"}
+  },
+  "publishDuringEdit": {
+    "approved": {"repository":"example/worklog","branch":"main","baseCommit":"synthetic-base-a","pendingIds":["e-approved"],"files":[{"path":"data/log/2026/11.json","text":"exact approved bytes"}],"deletions":[],"message":"exact approved message"},
+    "stagedWhilePublishing": ["e-new-edit"],
+    "expectOnSuccess": {"acknowledgedIds":["e-approved"],"remainingPendingIds":["e-new-edit"]},
+    "expectOnFailure": {"acknowledgedIds":[],"remainingPendingIds":["e-approved","e-new-edit"]},
+    "expectOnBaseAdvanceBeforeEffect": {"writeCalls":0,"result":"new-preview-required"}
+  },
+  "futureSchema": {
+    "manifest":{"schema":99,"months":["2026-11"]},
+    "snapshot":{"schema":99,"tasks":[]},
+    "expect":{"result":"unsupported-schema","writes":[],"deletions":[],"pendingPreserved":true}
+  }
+}

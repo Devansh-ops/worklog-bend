@@ -1,0 +1,29 @@
+{
+  "fixtureVersion": 1,
+  "status": "proposed expectations; not a runtime test result",
+  "cases": [
+    {
+      "id": "merge-equal-time-and-duplicate",
+      "left": [{"id":"e-a","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-aaa111","title":"Public A","status":"todo"}],
+      "right": [{"id":"e-b","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-bbb222","title":"Public B","status":"todo"},{"id":"e-a","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-aaa111","title":"Public A","status":"todo"}],
+      "expect": {"kind":"success","orderedIds":["e-a","e-b"]}
+    },
+    {
+      "id": "same-id-content-conflict",
+      "left": [{"id":"e-collision","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-aaa111","title":"First"}],
+      "right": [{"id":"e-collision","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-aaa111","title":"Different"}],
+      "expect": {"kind":"event-conflict","eventId":"e-collision","mustNotChooseEither":true}
+    },
+    {
+      "id": "late-status-needs-replay",
+      "covered": [{"id":"e-create","ts":"2026-11-01T09:00:00.000Z","type":"task.create","taskId":"T-aaa111","title":"A","status":"todo"},{"id":"e-done","ts":"2026-11-03T09:00:00.000Z","type":"task.status","taskId":"T-aaa111","from":"todo","to":"done"}],
+      "uncovered": [{"id":"e-late","ts":"2026-11-02T09:00:00.000Z","type":"task.status","taskId":"T-aaa111","from":"todo","to":"blocked"}],
+      "expect": {"incrementalTailAllowed":false,"statusAfterFullReplay":"done","orderedIds":["e-create","e-late","e-done"]}
+    },
+    {
+      "id": "covered-report-survives",
+      "covered": [{"id":"e-report","ts":"2026-11-01T18:00:00.000Z","type":"standup.set","date":"2026-11-01","kind":"evening","text":"Copied exactly","style":"plain"}],
+      "expect": {"latestReport":{"date":"2026-11-01","kind":"evening","text":"Copied exactly"},"mustSurviveReload":true}
+    }
+  ]
+}
