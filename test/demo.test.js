@@ -1,6 +1,6 @@
 import { check, checkAsync, eq, ok, report } from './shim.js';
 import { demoEvents, demoRepo, DEMO_SLUG } from '../js/demo.js';
-import { Store, foldEvents, STATUSES, todayISO } from '../js/store.js';
+import { Store, foldEvents, STATUSES, todayISO, localDate } from '../js/store.js';
 
 print('\n--- demo data ---');
 
@@ -8,7 +8,7 @@ check('every demo event lands inside the current month', () => {
   // The manifest and changelog index are per-month, and the demo only writes one
   // month file. An event dated into last month would be unreadable.
   const month = todayISO().slice(0, 7);
-  for (const e of demoEvents()) eq(e.ts.slice(0, 7), month, `event ${e.type} dated ${e.ts}`);
+  for (const e of demoEvents()) eq(localDate(e.ts).slice(0, 7), month, `event ${e.type} dated ${e.ts}`);
 });
 
 check('demo events are ordered oldest to newest', () => {

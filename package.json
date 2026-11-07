@@ -29,7 +29,10 @@
   },
   "scripts": {
     "start": "node bin/worklog.mjs",
-    "test": "./scripts/test.sh"
+    "test": "node test/run-node-baseline.mjs && node test/cli-real-smoke.mjs",
+    "test:upstream-jsc": "./scripts/test.sh",
+    "test:reference-defects": "node test/reference-defects.mjs",
+    "test:browser": "node scripts/test-browser-demo.mjs"
   },
   "engines": {
     "node": ">=18"

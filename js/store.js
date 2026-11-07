@@ -680,12 +680,14 @@ export class Store {
   /* --- pending-change persistence (survives a closed tab) --- */
 
   _restorePending() {
+    if (this.repo.demo) return;
     try {
       this.pending = JSON.parse(localStorage.getItem(this._pendingKey) || '[]');
     } catch { this.pending = []; }
   }
 
   _savePending() {
+    if (this.repo.demo) return;
     localStorage.setItem(this._pendingKey, JSON.stringify(this.pending));
   }
 
