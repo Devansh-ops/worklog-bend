@@ -62,6 +62,7 @@ function toBase64(text) {
 
 // jsc puts the args after `--` on globalThis.arguments; node puts them on process.argv.
 const argv = [...(globalThis.arguments || globalThis.process?.argv?.slice(2) || [])];
+if (argv[0] === '--') argv.shift();
 const [slug, appUrl, withExamples] = argv;
 if (!slug) { emit('scaffold.mjs: no repo slug given'); throw new Error('usage: scaffold.mjs <slug> <appUrl> <1|0>'); }
 
