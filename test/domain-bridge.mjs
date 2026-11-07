@@ -10,6 +10,12 @@ assert.deepEqual(mergeEvents([done, create], [create, late]).map(value => value.
 assert.deepEqual(mergeEvents([create])[0].extension, create.extension);
 assert.throws(() => mergeEvents([create], [{ ...create, title: 'Collision' }]), EventConflictError);
 assert.throws(() => mergeEvents([{ ...create, ts: '2026-02-30T00:00:00.000Z' }]), /calendar/);
+// Fixed-width UTC strings are the ordering boundary supplied to Bend.
+for (const ts of ['9999-12-31T23:30:00-01:00', '0000-01-01T00:30:00+01:00']) {
+  assert.throws(() => encodeEvent({ ...create, ts }), /four-digit calendar range/);
+}
+const offset = encodeEvent({ ...create, ts: '2026-11-08T00:15:00+05:30' });
+assert.equal(offset.ts, '2026-11-07T18:45:00.000Z');
 const original = structuredClone(create);
 const replayed = replayEvents([done, create, late]);
 assert.equal(replayed.tasks.get('T-aaa111').status, 'done');

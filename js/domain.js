@@ -43,11 +43,13 @@ function instant(value, path) {
   // Date silently rolls impossible days forward; reject those using the original
   // civil portion independently from timezone conversion.
   date(value.slice(0, 10), path);
-  return parsed.toISOString();
+  const normalized = parsed.toISOString();
+  if (!/^\d{4}-/.test(normalized)) throw new CodecError('normalized UTC timestamp exceeds the four-digit calendar range', path);
+  return normalized;
 }
 export function localDay(instantValue) {
   const value = new Date(instantValue);
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  return `${String(value.getFullYear()).padStart(4, '0')}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
 }
 function period(value) {
   if (value !== 'morning' && value !== 'evening') throw new CodecError('expected morning or evening', '$event.kind');
