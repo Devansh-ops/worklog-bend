@@ -97,3 +97,14 @@ refs/heads/main both equaled `cb8de30c6f0e9ed649c95b4d5b0391589f395c90`
 after the integrated production-source push. Subsequent test/evidence commits
 retain the same runtime and generated assets. Final local/remote equality is
 reported after the last normal push. No force push was used.
+
+## Public source preparation, 2026-11-09
+
+The README, CLI help and demo documentation link now describe this derivative
+instead of directing users to the upstream hosted app. No Worklog Bend hosted
+site is claimed. The exact pinned Bend Apache-2.0 license, third-party notices
+and reproducible generated-file attribution banners are included in package
+contents. The full starting main history passed a redacted Gitleaks 8.30.1 scan
+with zero findings. Personal machine/author details remain in preserved history;
+visibility remains private. See PUBLIC_RELEASE.md for the release decision and
+upstream outreach recommendations.

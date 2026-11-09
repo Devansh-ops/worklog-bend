@@ -739,7 +739,7 @@ class App {
         el('div', { class: 'row', style: 'margin-top:12px' },
           el('button', { class: 'primary', text: 'Set up my own log', on: { click: () => this.leaveDemo() } }),
           el('span', { class: 'spacer' }),
-          el('a', { class: 'sub', href: 'https://github.com/tanmayagrawal21/worklog#readme', target: '_blank', rel: 'noopener', text: 'How it works' }))));
+          el('a', { class: 'sub', href: 'https://github.com/Devansh-ops/worklog-bend#readme', target: '_blank', rel: 'noopener', text: 'How it works' }))));
   }
 
   /** Leave the demo by reloading without ?demo, so no demo state can leak into a real board. */

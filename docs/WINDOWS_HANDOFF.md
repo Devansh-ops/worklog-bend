@@ -1,5 +1,9 @@
 # Restore Worklog Bend on Windows
 
+Historical handoff instructions. Restoration and the rebuild have since completed;
+see STATUS.md for current results and WINDOWS_RECOVERY.md for the recovery record.
+The statements below describe the original handoff, before the Bend work.
+
 The handoff contains the original Worklog source, preserved Git history, and
 instructions for a full Bend rebuild. The Bend implementation and proofs have
 not been written or checked. Start with `docs/STATUS.md` after restoration.

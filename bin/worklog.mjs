@@ -67,10 +67,10 @@ const HELP = `worklog — run the Work Log board on localhost
 
 Your log lives in a git repo you own, not here. Nothing is stored in this package,
 and your tokens stay in the browser. Point the app at a repo from Settings, or run
-scripts/setup.sh from the repo if you would rather create one from the terminal.
+node scripts/setup.mjs from the repo to create one from the terminal.
 
-Hosted copy, if you would rather not run anything:
-  https://tanmayagrawal21.github.io/worklog/
+Source and setup documentation (a hosted demo has not been deployed):
+  https://github.com/Devansh-ops/worklog-bend
 `;
 
 /**
