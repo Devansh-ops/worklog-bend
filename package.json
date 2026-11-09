@@ -53,7 +53,9 @@
     "scripts/setup.mjs",
     "scripts/scaffold.mjs",
     "index.html",
-    "SETUP.md"
+    "SETUP.md",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses/"
   ],
   "dependencies": {},
   "sideEffects": false

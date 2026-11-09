@@ -101,6 +101,6 @@ const pack = spawnSync(npm, npmArgs, {
 assert.equal(pack.status, 0, pack.stderr);
 const listing = JSON.parse(pack.stdout);
 const files = new Set(listing[0].files.map(file => file.path));
-for (const path of ['LICENSE', 'index.html', 'bin/worklog.mjs', 'js/generated/core.mjs', 'js/generated/reports.mjs', 'js/generated/views.mjs', 'js/generated/publication.mjs', 'js/generated/planning.mjs', 'js/generated/manifest.json', 'scripts/setup.mjs', 'scripts/setup.sh']) assert.ok(files.has(path), `Package omitted ${path}`);
+for (const path of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses/Bend-Apache-2.0.txt', 'index.html', 'bin/worklog.mjs', 'js/generated/core.mjs', 'js/generated/reports.mjs', 'js/generated/views.mjs', 'js/generated/publication.mjs', 'js/generated/planning.mjs', 'js/generated/manifest.json', 'scripts/setup.mjs', 'scripts/setup.sh']) assert.ok(files.has(path), `Package omitted ${path}`);
 assert.ok(![...files].some(path => path.startsWith('.toolchain/') || path.startsWith('node_modules/') || path.endsWith('.token')));
 console.log(`Port fallback and npm package content checks passed (${files.size} packaged files). No package was published.`);

@@ -15,24 +15,24 @@
   },
   "assets": {
     "core.mjs": {
-      "sha256": "3358c87d34b95744e2ac859c3133c8fa03f12f9895567bc6d0fbd461abb79aec",
-      "bytes": 62669
+      "sha256": "71089918bd15dab7f8e485b65b0da041ce186101013583ade37e9d9a76b55a09",
+      "bytes": 62957
     },
     "reports.mjs": {
-      "sha256": "814bbcde580658c9bf46d48c93bbdc1e9639632f3ab495df0168091e7da041f1",
-      "bytes": 84059
+      "sha256": "33fec5dc251e48a6bcecc75329cd679465b0ae9348393370661bdecd7ce967d7",
+      "bytes": 84347
     },
     "publication.mjs": {
-      "sha256": "2cb087b546da62aa01f40ee5d8a0bd5c85b4ab16c29ab303fd0ea6dac3683a96",
-      "bytes": 66115
+      "sha256": "52ff38f8a6b44cbcdbeb78edfc155de44efbbdf84b3d7b2673608a50139c57ce",
+      "bytes": 66403
     },
     "views.mjs": {
-      "sha256": "d9353d53603b6412df056eebce32f1d7b0aa595496bdd31daea83a912598490e",
-      "bytes": 108449
+      "sha256": "641e24964fd686b7b48d9de98b8f52cd4a97d692b4ce63dec018e9071791b1c8",
+      "bytes": 108737
     },
     "planning.mjs": {
-      "sha256": "08d61f013ef1dac87070c17afd6774727c7190e7ef3468f0c3f40576f1a6e1b4",
-      "bytes": 87118
+      "sha256": "bce26d1612b449708fe6d629efddf0a6ba90339b996b3583832f0c9f57945e75",
+      "bytes": 87406
     }
   }
 }
