@@ -56,12 +56,12 @@ safety proofs do not assert that arbitrary supplied plans pass, prove host
 codecs, or prove that every well-formed input succeeds. The runtime checks also
 reject mutated lost-event, wrong-month and unauthorized-delete plans.
 
-Validation commands from a compiler-equipped WSL shell in this worktree:
+Validation commands from the repository root in a compiler-equipped Linux or WSL shell:
 
 ```sh
-sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh bend/Planning.bend --verdict
-sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/PlanningLaws.bend --verdict
-sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh bend/Planning.bend -o js/generated/planning.mjs
+sh scripts/bend-linux.sh bend/Planning.bend --verdict
+sh scripts/bend-linux.sh proof/PlanningLaws.bend --verdict
+sh scripts/bend-linux.sh bend/Planning.bend -o js/generated/planning.mjs
 node test/bend-planning.mjs
 ```
 

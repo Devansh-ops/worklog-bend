@@ -12,10 +12,14 @@ Standup-view fixtures include complete synthetic task creation history and event
 
 The setup UI shows the actual message and expandable full file contents. Changing examples or visibility creates and displays a new prepared plan. A generation guard discards stale asynchronous previews. Confirmation returns the displayed frozen object; execution does not regenerate timestamps, random example IDs, or file contents. Cancel performs no write.
 
-Executed in this worktree against the integration dependency commit `6824b2b`:
+Recorded checks against integration revision `6824b2b`, runnable from the repository root:
 
 - `node test/run-node-baseline.mjs`: 48 executions across Asia/Kolkata, Pacific/Kiritimati, Pacific/Niue, and UTC; 1,004 assertions; zero failed executions. This uses browser API shims and is not browser evidence.
 - `node test/bootstrap-plan.mjs`: eight setup/effect checks passed. They cover exact immutable preparation, changed options/destination, preserving README, current and unlisted historical partial-data refusal, base conflict, pinned inspection, atomic root-ref collision, and wrong-owner refusal. HTTP is intercepted with synthetic values and fake credentials.
 - `node --check js/bootstrap.js`, `node --check js/ui/setup.js`, and `git diff --check`: passed.
 
-The full 48-execution baseline was also rerun with the integration agent's subsequent actual Bend mechanical-report/reminder hooks and Views-dependent bridge. It passed after the late-arrival view fixture was given both its task creation event and a distinct note ID. The integration agent must rerun after later source changes and run the actual browser setup flow. These tests do not prove GitHub or browser correctness, execute real service writes, or close the outstanding universal merge/checkpoint/migration obligations in `LAW_REVIEW.md`.
+The full baseline also passed with the Bend report/reminder and Views bridges.
+The late-arrival view fixture includes both task creation and a distinct note ID.
+STATUS.md records the integrated browser and domain gates; LAW_REVIEW.md states
+the exact modeled proof scope. These host fixtures do not prove browser or
+GitHub behavior and perform no real service writes.

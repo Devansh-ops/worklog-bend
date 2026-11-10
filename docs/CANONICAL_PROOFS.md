@@ -30,10 +30,10 @@ The module constructs a two-event, nonempty chronological list with distinct IDs
 
 `duplicate_set_is_not_unique` demonstrates the necessary distinction: `[a]` and `[a,a]` have the same complete-event set, but the latter fails actual unique-ID checking. An isolated negative fixture claiming that duplicated list is unique is rejected. This prevents interpreting set equality alone as list equality.
 
-The positive command executed from the proof worktree was:
+Run from the repository root in a Linux or WSL shell after the toolchain setup:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-sort && sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Canonical.bend --verdict'
+```sh
+sh scripts/bend-linux.sh proof/Canonical.bend --verdict
 ```
 
 It returned `ALL PROOFS CHECK`, exit 0. The same verdict route on ignored `tmp/canonical-negative.bend` returned exit 1 with an equality mismatch for `deliberately_duplicate_is_unique`. Missing tools or an unsupported kernel model are not counted as negative-test success.
@@ -42,6 +42,6 @@ It returned `ALL PROOFS CHECK`, exit 0. The same verdict route on ignored `tmp/c
 
 The theorem uses independently checked `proof/Equality.bend`, `proof/Unique.bend` and their membership/count support, plus `proof/Sort.bend`, `proof/ChronologicalSort.bend` and `proof/Order.bend`. Those files are maintained by their respective owners. In particular, `Equality.event_equality_sound` reflects the actual full production equality predicate, and `ChronologicalSort.time_id_equal` refers to the actual timestamp/ID selector through its explicit lexicographic bridge.
 
-The initial checked dependency commits were Equality `5a55913`, Unique `eeaafef`, Count `b8ace79`, Membership `0159ef3`, Sort `64475b9`, ChronologicalSort `6824001` and Order `77c98b7` following `28a4dae`. These dependencies were borrowed without modification for the independent check; the canonical proof commit contains only its own module and review document.
+All dependencies are included under proof/ and checked by the repository-local root gate. No additional checkout or copied support files are required.
 
 This module establishes canonical normal-form uniqueness. It is not by itself a proof that merge always succeeds on consistent inputs, refuses every conflicting ID mapping, or has the required output event set and unique IDs. The root laws must compose those separate implementation results to obtain commutativity, associativity and idempotence. It does not certify the JavaScript codec, compiler translation, persistence, GitHub or browser effects.

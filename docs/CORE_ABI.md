@@ -11,7 +11,7 @@ sh scripts/bend-linux.sh bend/Core.bend -o js/generated/core.mjs
 node test/bend-core.mjs
 ```
 
-During the independent worktree implementation, the wrapper and compiler cache were provided by the sibling toolchain worktree; integration must rerun the build and tests with its installed pin. The initial emitted artifact ran under Node 25.8.1. The 20 runtime checks include 80 generated independent merge examples and a 1,200-event duplicate-history case. These checks are finite runtime evidence, not universal proofs.
+The wrapper, compiler lock and installation scripts are included in this repository. Run from the repository root after the documented toolchain setup. The initial emitted artifact ran under Node 25.8.1. The 20 runtime checks include 80 generated independent merge examples and a 1,200-event duplicate-history case. These checks are finite runtime evidence, not universal proofs.
 
 ## Values
 

@@ -1,6 +1,6 @@
 # Worklog Bend rebuild plan
 
-Updated: 2026-11-08. Restoration is complete, the verified toolchain is established, and the Bend-backed application is runnable. Local acceptance is complete for the implemented application and important modeled invariants; hosted and clean-checkout confirmation are recorded in STATUS.md. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
+Updated: 2026-11-08. The verified toolchain is established and the Bend-backed application is runnable. Local acceptance is complete for the implemented application and important modeled invariants; hosted and clean-checkout confirmation are recorded in STATUS.md. See docs/STATUS.md, docs/FEATURE_MATRIX.md and docs/LAW_REVIEW.md for actual results and exclusions.
 
 Read `AGENTS.md`, `docs/STATUS.md`, and `docs/SPEC.md` first. The original Worklog
 application is the feature reference, not an infallible behavioral oracle. The
@@ -30,7 +30,7 @@ and final review. Use a separate branch and worktree for each independent agent.
 Start branches from the most recent accepted integration commit. Use unique
 sibling worktree directories rather than nesting one checkout inside another.
 
-Proposed ownership after Phase 1 validates paths and tooling:
+Ownership pattern for independent changes:
 
 | Branch and worktree suffix | Agent ownership | Dependency |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ Each handoff includes commit hash, owned files, actual commands and results,
 assumptions, known gaps, and feature/law IDs. Review the diff, integrate the
 coherent commit, then run the phase gate in the integration worktree. Do not
 force-push, rewrite upstream history, or include real credentials or work notes.
-Use repository-local identity `Devansh Sehgal <devanshsehgal02@gmail.com>`.
+Use the contributor's configured Git identity.
 
 ## Phase 1: establish a verified compiler and runnable bridge
 
@@ -218,20 +218,20 @@ by default. Do not publish a BendHub package as part of this rebuild.
 ## Accepted implementation decisions
 
 - Full verified-source replay replaces the unsafe timestamp-watermark snapshot
-+  shortcut. Warm raw-body caching bounds network reads while preserving complete
-+  deletion/late-event provenance. Cold loads must verify all sources.
-+- Same-ID content conflicts are errors; peer Git changes require new explicit
-+  approval rather than an automatic materially changed retry.
-+- Copied reports record exact clipboard text, not delivery to a team channel.
-+- Local pending operation journals prevent cross-tab stale-snapshot loss. They
-+  retain content and grow until an explicit future safe compaction design.
-+- Proof acceptance concerns the stated important pure-domain invariants. Host
-+  effects and representation boundaries have executed independent tests; live
-+  provider/GPU/OS integration limits remain visible in STATUS.md.
-+
-+## Handoff checkpoint
+  shortcut. Warm raw-body caching bounds network reads while preserving complete
+  deletion/late-event provenance. Cold loads must verify all sources.
+- Same-ID content conflicts are errors; peer Git changes require new explicit
+  approval rather than an automatic materially changed retry.
+- Copied reports record exact clipboard text, not delivery to a team channel.
+- Local pending operation journals prevent cross-tab stale-snapshot loss. They
+  retain content and grow until an explicit future safe compaction design.
+- Proof acceptance concerns the stated important pure-domain invariants. Host
+  effects and representation boundaries have executed independent tests; live
+  provider/GPU/OS integration limits remain visible in STATUS.md.
 
-Restoration and the runnable rebuild are implemented. All local proof, runtime
-+and browser gates passed. Keep STATUS.md and LAW_REVIEW.md current when behavior
-+changes, preserve private source visibility and upstream history, and rerun the
-+appropriate gates before integrating future work.
+## Maintenance
+
+The runnable rebuild is implemented. All local proof, runtime
+and browser gates passed. Keep STATUS.md and LAW_REVIEW.md current when behavior
+changes, preserve configured source visibility and upstream history, and rerun the
+appropriate gates before integrating future work.

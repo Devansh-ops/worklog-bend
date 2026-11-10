@@ -5,7 +5,7 @@ acceptance results are in STATUS.md. The runtime gate now runs the corrected
 calendar oracle and all 48 suite executions pass. The fault-observation fixture
 is retained for reference and is not a current release gate.
 
-Checked 2026-11-07 against restored handoff `2dc1e08`, containing upstream
+Checked 2026-11-07 against reference revision `2dc1e08`, containing upstream
 `53bff74016df38a9c88f6cf94c7b556225dd79fb`. Production source was unchanged at that baseline.
 Host: Windows 11 build 26200, Node v25.8.1, npm 11.11.0; Windows zone
 India Standard Time.

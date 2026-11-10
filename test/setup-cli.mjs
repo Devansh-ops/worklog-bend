@@ -54,7 +54,8 @@ try {
     const help = execute(process.execPath, ['scripts/setup.mjs', '--help'], { cwd: root }); assert.equal(help.status, 0); assert.match(help.stdout, /No force push/);
     const scaffold = execute(process.execPath, ['scripts/scaffold.mjs', '--', 'synthetic/data', 'http://localhost:8765/', '0'], { cwd: root });
     assert.equal(scaffold.status, 0, scaffold.stderr); assert.match(scaffold.stdout, /^data\/manifest.json\t/);
-    const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
+    const bash = process.env.WORKLOG_TEST_BASH || (process.platform === 'win32'
+      ? resolve(git(['--exec-path'], root).trim(), '../../../bin/bash.exe') : 'bash');
     const shell = execute(bash, ['scripts/setup.sh', '--help'], { cwd: root });
     assert.equal(shell.status, 0, shell.stderr); assert.match(shell.stdout, /Node 18/);
   });

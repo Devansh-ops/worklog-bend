@@ -1,19 +1,9 @@
 # Worklog Bend status
 
-Updated: 2026-11-08. Repository recovery and the Bend-backed rebuild are implemented.
+Updated: 2026-11-10. The Bend-backed application is implemented and runnable.
 Local acceptance, clean-checkout reproduction and hosted Ubuntu CI passed for
 production integration `cb8de30`. The concurrent-tab fixture was then strengthened
 to assert its exact observed approval and passed again at `bc7bc35`.
-
-## Recovery
-
-- Actual Windows Documents resolved to `C:\Users\desehgal\Documents`; no OneDrive redirection was active.
-- Restored checkout: `C:\Users\desehgal\Documents\personal\tanmay\worklog-test`.
-- Private destination: https://github.com/Devansh-ops/worklog-bend.
-- Repository-local identity: `Devansh Sehgal <devanshsehgal02@gmail.com>`.
-- The failed script stopped at `gh api user` before cloning. The bundle remained intact; its SHA-256 was verified, and `-SkipPush` restored it independently.
-- Existing Windows gh credentials worked under the actual user. Process-only direct access bypassed an inherited proxy whose hostname did not resolve. No global proxy or credential changes, force pushes or unrelated overwrites were used. See `WINDOWS_RECOVERY.md`.
-- Upstream history and MIT license remain intact. Separate owned agent worktrees produced reviewed coherent commits.
 
 ## Implemented application
 
@@ -83,28 +73,9 @@ compiler, JSON, DOM, storage, transport or all rendering/calendar behavior.
 All provider and repository browser fixtures use synthetic data and credentials.
 Live provider authentication/CORS, real GPU model inference and OS default-browser
 launching were not executed. No npm/BendHub package or hosted site was published.
-The private source repository is the authorized publication destination.
+Source publication and hosted deployment are separate release actions.
 
 Run locally from the checkout with `npm --loglevel verbose start -- --demo`.
 Developer reproduction: `BEND_TOOLCHAIN.md`. Detailed boundary evidence:
 `CORE_ABI.md`, `PLANNING_ABI.md`, `STORE_PROTOCOL.md`, `SOURCE_CACHE.md`,
 `AI_TRANSPORT.md`, `BROWSER_ACCEPTANCE.md`, `RELEASE_CHECKS.md`.
-
-## Publication evidence
-
-Private visibility was verified with the GitHub API. Local main and remote
-refs/heads/main both equaled `cb8de30c6f0e9ed649c95b4d5b0391589f395c90`
-after the integrated production-source push. Subsequent test/evidence commits
-retain the same runtime and generated assets. Final local/remote equality is
-reported after the last normal push. No force push was used.
-
-## Public source preparation, 2026-11-09
-
-The README, CLI help and demo documentation link now describe this derivative
-instead of directing users to the upstream hosted app. No Worklog Bend hosted
-site is claimed. The exact pinned Bend Apache-2.0 license, third-party notices
-and reproducible generated-file attribution banners are included in package
-contents. The full starting main history passed a redacted Gitleaks 8.30.1 scan
-with zero findings. Personal machine/author details remain in preserved history;
-visibility remains private. See PUBLIC_RELEASE.md for the release decision and
-upstream outreach recommendations.

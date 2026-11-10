@@ -5,8 +5,7 @@
 The project compiler is Bend 2.0.40 at commit
 `70607d7f740e3b3f4a1edc61069df8ab88491696` from
 https://github.com/bendlang/bend. `toolchain/bend.lock.json` locks every compiler
-source dependency and the guide by SHA-256. This replaces the handoff's untested
-documentation reference. The installer retrieves only the listed files from that
+source dependency and the guide by SHA-256. The installer retrieves only the listed files from that
 immutable commit and checks bytes before writing. The wrapper checks them again
 before every invocation.
 
@@ -18,28 +17,45 @@ This was reproduced after the single-file smoke. Compiler source is unpatched.
 The current upstream kernel builder expects Unix executable names and is
 validated in WSL rather than assumed to support native Windows.
 
-## Install and run on Windows
+## Install and run
 
-Install Bun **1.3.10**, or use that existing executable. The wrapper rejects a
-different version. In PowerShell from the checkout:
+Run all commands from the repository root. Prerequisites are Node.js and, for
+full compiler/proof checks, Linux or WSL Ubuntu with Python 3.11+, libzstd and tar.
+The installers download the exact locked compiler and proof-tool archives.
+
+Windows PowerShell:
 
 ```powershell
-$env:BUN = "$HOME\.bun\bin\bun.exe"
 node scripts/install-bend.mjs
+node scripts/install-proof-tools.mjs
+wsl --distribution Ubuntu --exec sh scripts/test-bend-verdict.sh
+npm --loglevel verbose run check:build
+npm --loglevel verbose run test:proof
+```
+
+WSL inherits the current checkout directory; no drive or user path is embedded.
+On Linux, run the same installers and replace the WSL invocation with:
+
+```sh
+sh scripts/test-bend-verdict.sh
+```
+
+Optional native single-file smoke checks require Bun 1.3.10 on PATH, or the BUN
+environment variable pointing to that version's executable:
+
+```sh
 node scripts/bend.mjs version
-node scripts/bend.mjs --help
 node scripts/bend.mjs guide
 node scripts/bend.mjs base --types
 node scripts/test-bend-toolchain.mjs
 ```
 
-No moving branch, global compiler installation, package publication, or credential
-is needed. Source, output and caches stay in ignored `.toolchain/`. Compilation
-disables automatic `.env` loading, uses an empty Bun configuration, and sets the
-compiler's documented telemetry opt-out. The wrapper does not patch compiler
-source or change proof semantics. Downloads use Node HTTPS; a blocked network
-fails installation explicitly. See `WINDOWS_RECOVERY.md` for this machine's
-process-only GitHub proxy workaround.
+Full imported modules and verdicts still use Linux/WSL. No sibling checkout,
+global compiler installation, package publication or credentials are required.
+Compiler sources, generated output and wrapper metadata stay in ignored
+`.toolchain/`. Downloads use Node HTTPS and fail explicitly if unavailable.
+Compilation disables automatic `.env` loading, uses an empty Bun configuration
+and sets the compiler's telemetry opt-out without changing proof semantics.
 
 ## Actual checks and scope
 
@@ -65,7 +81,7 @@ The bridge smoke compiles `toolchain/smoke/bridge.bend` into
 `.toolchain/bridge.mjs` and imports that exact output. It verifies Unicode,
 booleans, nested constructors, lists, wraparound, typed error alternatives and
 mutation ownership. Its evidence JSON records the generated module's SHA-256.
-The main worktree separately owns the real static-HTTP Chromium browser harness.
+The repository includes the real static-HTTP Chromium browser harness.
 
 ## Inspected generated ABI
 
@@ -112,17 +128,16 @@ The installer verifies both SHA-256 values, including before extraction. It
 needs Ubuntu's Python 3.11 or later, system libzstd, and tar. It installs into
 `$HOME/.cache/worklog-bend-proof` in Ubuntu; set `WORKLOG_PROOF_CACHE` to choose
 another persistent dedicated cache. No apt, pip, elan, or global PATH edit is
-required. `/tmp` was unsuitable on this host because it was cleaned between WSL
-starts, so the helper deliberately uses a persistent cache.
+required. The persistent cache avoids re-extracting the tools on every run.
 
 From the Windows checkout:
 
 ```powershell
 node scripts/install-proof-tools.mjs
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test && sh scripts/test-bend-verdict.sh'
+wsl --distribution Ubuntu --exec sh scripts/test-bend-verdict.sh
 ```
 
-Adapt the checkout path for another machine. On a Linux checkout, execute
+On a Linux checkout, execute
 `node scripts/install-bend.mjs`, `node scripts/install-proof-tools.mjs`, then
 `sh scripts/test-bend-verdict.sh`. The helper uses the locked Linux Bun binary to
 run the JavaScript harness, including compilation, so no separate Linux Node
@@ -130,12 +145,10 @@ installation is needed for the proof invocation. The wrapper still validates
 the Bun version and every compiler source byte. The exact Lean version is
 checked by both bootstrap and the upstream kernel builder.
 
-The compiler wrapper resolves input files from the caller's current directory,
-while its own source and caches remain anchored beside the wrapper. Agents in
-another worktree can invoke `node <toolchain-worktree>/scripts/bend.mjs PROOF.bend`
-from their own directory. Prefer relative input filenames in Windows because
-the pinned compiler's imported-path handling was not assumed portable for
-drive-qualified absolute inputs. Full module graphs must use the WSL route.
+The compiler wrapper resolves input files from the caller's working directory.
+Run from the repository root and use this checkout's `scripts/bend-linux.sh`.
+Its compiler metadata is resolved relative to its own script location. The
+optional environment overrides do not require another checkout.
 
 The real multi-module `toolchain/smoke/imported.bend` fixture both passes
 `--verdict` and compiles to a callable JavaScript export under WSL. The native
@@ -147,7 +160,27 @@ sh scripts/bend-linux.sh PROOF.bend --verdict
 sh scripts/bend-linux.sh bend/Core.bend -o .toolchain/core.mjs
 ```
 
-For a sibling worktree before integration, use the absolute POSIX path of
-`scripts/bend-linux.sh` in the toolchain worktree, keeping the caller's current
-directory in the sibling. The helper anchors compiler integrity and caches to
-its own checkout but preserves that caller directory for imports.
+
+For an individual module from Windows PowerShell, use the same repository-relative
+paths:
+
+```powershell
+wsl --distribution Ubuntu --exec sh scripts/bend-linux.sh proof/Order.bend --verdict
+```
+
+## Browser test dependencies
+
+After the compiler smoke above has generated `.toolchain/bridge.mjs`, install
+the locked Playwright version into this checkout and its browser:
+
+```powershell
+npm --loglevel verbose install --no-save --package-lock=false playwright@1.61.0
+npm --loglevel verbose exec -- playwright install chromium
+npm --loglevel verbose run test:browser:all
+```
+
+On Linux, use `npm --loglevel verbose exec -- playwright install --with-deps chromium`
+when system browser libraries also need installation. CI includes that route.
+Tests use this checkout and its local Playwright installation by default.
+`PLAYWRIGHT_MODULE`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE` and `WORKLOG_APP_ROOT` are
+optional overrides for explicitly selected installations or checkouts.

@@ -62,17 +62,17 @@ There are 168 root law declarations, plus supporting proofs in Equality, Members
 | Replay and recovery | Folding concatenated event lists equals composing the actual folds, for arbitrary initial state. Notes preserve status/completion; the latest folded summary/report replaces the same key. Exact canonical full-event coverage implies reconcile equals authoritative full replay. Reconciliation is universally commutative and duplicate-idempotent under finite input consistency, derived from actual merge algebra without an assumed target replay result. An eight-event shuffled recovery checks the complete state, retained private tombstone, note/status, latest summary/report and both privacy projections. A backdated-note recovery retains the later status/updated time after canonical replay. Directly applying an old note to an already newer snapshot does not preserve updated time and is not claimed. |
 | Supporting order and witnesses | Word/U32/String comparator reflexivity and equality soundness; String.eq true implies actual propositional equality, rather than an assumed equality flag. A concrete public live task inhabits eligibility, schema 999 inhabits refusal premises, and a supported exact plan inhabits approval. |
 
-The complete verification command in this worktree used the pinned sibling wrapper:
+Run the complete verification gates from this repository root after installing
+the pinned tools as described in BEND_TOOLCHAIN.md:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-laws; sh /mnt/c/Users/desehgal/Documents/temp/worklog-bend-toolchain/scripts/bend-linux.sh PROOF.bend --verdict'
-$env:BEND_LINUX_WRAPPER = 'C:\Users\desehgal\Documents\temp\worklog-bend-toolchain\scripts\bend-linux.sh'
-node test/proof/negative.mjs
+```sh
+npm --loglevel verbose run check:build
+npm --loglevel verbose run test:proof
 ```
 
 Both returned exit 0. The mutation harness first requires the unmodified root verdict and the standalone runtime-only mutation-witnesses.bend fixture to succeed. It then makes isolated copies under ignored tmp/proof-negative-* directories. Each mutation must fail a named finite counterexample in that runtime-only fixture, and must also fail the full root proof gate. The standalone fixture imports no proof-support modules, preventing failure of a still-true support theorem's shape-dependent proof from masquerading as an actual false-property counterexample.
 
-All thirteen deliberate mutations were rejected: historical note deliveries with notes-off; notes with notes-off; ignored private flags; unsupported-schema gate bypass; substituted publication plans; omitted distinct events; firing disabled reminders; firing on complete days; ineligible report tasks; accepted inconsistent event content; corrupted complete event data with retained IDs; retained duplicate deliveries; and bypassed prospective replay validation for a new note before its task creation. Missing tools or infrastructure errors do not satisfy the named-counterexample assertion. Diagnostics for both checks remain in each temporary directory; production files are unchanged. After integration the default wrapper path is scripts/bend-linux.sh, so the environment override is unnecessary.
+All thirteen deliberate mutations were rejected: historical note deliveries with notes-off; notes with notes-off; ignored private flags; unsupported-schema gate bypass; substituted publication plans; omitted distinct events; firing disabled reminders; firing on complete days; ineligible report tasks; accepted inconsistent event content; corrupted complete event data with retained IDs; retained duplicate deliveries; and bypassed prospective replay validation for a new note before its task creation. Missing tools or infrastructure errors do not satisfy the named-counterexample assertion. Diagnostics for both checks remain in each temporary directory; production files are unchanged. The default wrapper is the repository-local scripts/bend-linux.sh; no environment override is required.
 
 Native Windows Bun accepted single-file checks but the pinned compiler rejected ordinary multi-file Windows import paths. These domain checks therefore used the working WSL route. The compiler source was not modified to bypass that limitation.
 
@@ -82,7 +82,7 @@ The important modeled law families above are accepted by the real pinned verdict
 
 The recovery implementation deliberately uses verified source caches and authoritative full replay. It makes no incremental-tail-on-snapshot correctness claim. Canonical ordering plus universal note status/completion preservation supports the recovery argument; the detailed eight-event whole-state and backdated-note results are nonempty witnesses, not a universal theorem that every malformed history is complete. Unsupported/incomplete histories remain diagnosed and fail closed.
 
-Provider request bytes, stale proposals, endpoint classification, explicitly disclosed free text, retries, browser effects, multi-tab journals, Git ref races, read-base binding, JSON duplicate-key validation, unknown-field retention, generated JavaScript, calendar conversion, report formatting and OS scheduling require adapter/integration/browser checks. The parent integration records executed checks for these boundaries separately. No proof here certifies arbitrary provider responses or live network effects. The failed-publication theorem concerns the acknowledgement function's failure input; host outcome classification, including ambiguous failures, remains an effect-boundary responsibility.
+Provider request bytes, stale proposals, endpoint classification, explicitly disclosed free text, retries, browser effects, multi-tab journals, Git ref races, read-base binding, JSON duplicate-key validation, unknown-field retention, generated JavaScript, calendar conversion, report formatting and OS scheduling require adapter/integration/browser checks. STATUS.md records executed checks for these boundaries separately. No proof here certifies arbitrary provider responses or live network effects. The failed-publication theorem concerns the acknowledgement function's failure input; host outcome classification, including ambiguous failures, remains an effect-boundary responsibility.
 
 No law uses unsafe axioms or foreign effects. Proof guarantees remain scoped to the modeled values accepted by the pinned checker and verdict kernel; the compiler translation and host boundaries are not proved by these results.
 

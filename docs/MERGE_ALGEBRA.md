@@ -2,13 +2,13 @@
 
 `proof/Algebra.bend` establishes commutativity, associativity and idempotence for the actual `Core.merge` on arbitrary finite consistent input collections. Public statements have no output-success, ordering, uniqueness, membership-correctness or desired-result premise.
 
-The complete module, including its nonempty applications, passed the real Bend 2.0.40 and Lean 4.34.0 verdict route on 2026-11-08:
+The complete module, including its nonempty applications, passed the real Bend 2.0.40 and Lean 4.34.0 verdict route on 2026-11-08. To reproduce from the repository root in Linux or WSL:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-order && sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Algebra.bend --verdict'
+```sh
+sh scripts/bend-linux.sh proof/Algebra.bend --verdict
 ```
 
-Observed result: `ALL PROOFS CHECK`, exit 0. This worktree borrowed the separately checked Canonical, ChronologicalSort, Count, Equality, Membership, MergeSets, Sort and Unique dependencies. They are not changed or included in this commit. The actual merge implementation is unchanged.
+Observed result: `ALL PROOFS CHECK`, exit 0. The separately checked Canonical, ChronologicalSort, Count, Equality, Membership, MergeSets, Sort and Unique dependencies are included in this repository. The actual merge implementation is unchanged.
 
 ## Universal public laws
 

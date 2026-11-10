@@ -27,7 +27,7 @@ Install the exact Playwright version recorded in `toolchain/bend.lock.json` and 
 node test/browser-workflow.mjs
 ```
 
-During isolated worktree verification, `WORKLOG_APP_ROOT` pointed to the integration checkout. After integration the default is this test's repository root. The optional override changes only the CLI's source directory.
+The default source is this test's repository root. The optional WORKLOG_APP_ROOT override changes only the CLI source directory; no other checkout is required.
 
 These checks cover one Chromium build and synthetic service responses. They do not establish live provider availability, authenticated GitHub API behavior, actual message delivery, WebGPU execution, all assistive technologies, or universal Bend laws. Separate vault, CLI, transport, source-cache, domain and proof checks remain necessary.
 

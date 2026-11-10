@@ -1,65 +1,45 @@
-# Public release preparation
+# Public release guide
 
-Reviewed 2026-11-09, starting from `b414524`.
+## Verify the checkout
 
-## Source release
+Install the pinned developer tools using BEND_TOOLCHAIN.md, then run these
+commands from the repository root:
 
-The application is runnable and has passed the recorded domain, adapter,
-browser, clean-checkout and hosted CI gates. An experimental public source
-release is a reasonable next step within the limits in STATUS.md.
+```sh
+npm --loglevel verbose run check:build
+npm --loglevel verbose run test:proof
+npm --loglevel verbose test
+npm --loglevel verbose run test:browser:all
+```
 
-The README now describes this implementation and its real commands. No hosted
-demo is claimed: GitHub reported `has_pages: false`, with no homepage configured.
-Deploy and verify the actual site before adding its public app/demo links.
+Review STATUS.md, FEATURE_MATRIX.md and LAW_REVIEW.md for the actual tested scope.
+Keep the application source separate from work-data repositories. Check tracked
+files, Git history and build logs for information intended to remain private
+before publishing. Current-file edits do not alter earlier commits.
 
-Gitleaks 8.30.1 scanned all 102 commits reachable from the starting main branch
-with fully redacted output and reported zero findings. No tracked work-data
-directory or credential files were found. This is a targeted credential check,
-not an exhaustive security audit or a guarantee that no sensitive information
-exists anywhere.
+Retain LICENSE, THIRD_PARTY_NOTICES.md and licenses/Bend-Apache-2.0.txt in source
+and packaged distributions. Generated asset notices are maintained by the build.
 
-Preserved history does contain personal details: author email, local Windows
-username/paths and recovery/network context. These appear in STATUS.md,
-WINDOWS_RECOVERY.md, Windows handoff material and proof/toolchain instructions.
-Decide whether that disclosure is acceptable before changing visibility. Editing
-only current files does not remove their earlier versions or commit metadata.
-No history was rewritten or repository visibility changed during this review.
+## Hosted demo
 
-Upstream MIT attribution remains in LICENSE. The exact pinned Bend source uses
-Apache-2.0; THIRD_PARTY_NOTICES.md and licenses/Bend-Apache-2.0.txt retain that
-notice for translated Base/runtime portions of generated assets. Package contents
-include both notices and the license copy.
+A public Worklog Bend demo has not been deployed. Deploy and verify the static
+HTML, CSS, JavaScript and generated modules together before adding an app/demo
+URL to README.md. Relative asset paths support repository subpaths.
 
 ## Contacting upstream
 
-The upstream repository currently has issues enabled and Discussions disabled.
-The account Devansh-ops already has issues #2, #4, #5, #6, #7, #8, #9 and #10
-covering privacy, test and replay/concurrency defects. Check and reuse those
-threads rather than filing duplicates.
-
-For announcing this separate Bend-based implementation, a short issue asking
-whether the maintainer is interested in a link or small backports is preferable
-to a pull request replacing their architecture. Keep the full port in this repo.
-Offer individual upstream-compatible JavaScript fixes with focused regression
-tests as separate PRs when useful. This is a standalone repository, so create
-a fork of upstream for those backport PRs. Reconfirm current issue state before posting.
-No issue, comment or PR was sent by this review.
-
-Suggested announcement, after the source is public:
-
-> I built an independent Bend2-based derivative of Worklog and preserved your
-> attribution and MIT license. It keeps browser/effect code in JavaScript and
-> adds checked domain laws plus adapter/browser tests. Source and proof scope:
-> https://github.com/Devansh-ops/worklog-bend. Would you be interested in a link
-> to the port or small, separately reviewed JavaScript backports for the existing
-> issues? I can keep the Bend migration in the derivative repository.
+For announcing the independent Bend-based implementation, first check upstream's
+contribution guidance and existing issues. A concise announcement asking about
+interest in a link or backports is preferable to a wholesale architecture PR.
+Offer focused upstream-compatible fixes with regression tests separately. This
+repository is standalone; use a fork of upstream for cross-repository backport PRs.
 
 ## Further work
 
-- Verify a real static deployment before presenting a hosted demo.
-- Treat initial public release as experimental. Live provider authentication/CORS,
-  GPU inference and OS browser launching remain unexecuted integration checks.
-- A safe explicit journal-compaction design would address ongoing local storage
-  growth. Existing append-only history retention is documented.
-- Consider contributor/security-reporting guidance and a preview release tag
-  when ready to maintain an external release. No package has been published.
+- Keep initial releases experimental within the documented integration limits.
+  Live provider authentication/CORS, GPU inference and OS browser launching have
+  not been exercised.
+- Design safe explicit journal compaction to address local storage growth.
+  Append-only event retention is documented in PENDING_RECOVERY.md.
+- Add contributor/security-reporting guidance and a preview release tag when
+  maintaining an external release. No npm package has been published.

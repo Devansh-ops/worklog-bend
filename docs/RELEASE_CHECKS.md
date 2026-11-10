@@ -13,7 +13,7 @@ Checked 2026-11-08 on Windows x64 with Node 25.8.1 and Chromium 149.0.7827.55 th
 - With WebGPU deliberately unavailable, provider validation and explicit model preload return a clear error before runtime or model downloads. No loaded model is reported.
 - The actual app renders at 1440px and 400px beneath `/project/`; all five generated Bend modules load and execute as browser ES modules under that subpath. No compiler or backend is involved. Page errors and requests outside the loopback origin cause test failure.
 
-The test can target another checkout with `WORKLOG_APP_ROOT`. During independent development it passed against the parent's current integration checkout as well as the local artifact set. The test does not claim a real GPU model ran, an authenticated provider accepted a request, or a browser-specific operating-system credential store was tested. Per-load unlock dialogs and their read-only skip flow belong to broader UI acceptance.
+The test can target another checkout with `WORKLOG_APP_ROOT`. The default target is this repository; no external checkout is required. The test does not claim a real GPU model ran, an authenticated provider accepted a request, or a browser-specific operating-system credential store was tested. Per-load unlock dialogs and their read-only skip flow belong to broader UI acceptance.
 
 ## Local CLI and package
 
@@ -33,3 +33,8 @@ default/public choice, empty and existing README repositories, unindexed partial
 history refusal, peer advances and failed pushes. The Node entry point is
 `scripts/setup.mjs`; `scripts/setup.sh` is a thin compatible wrapper. Both ship
 in the package. No real repository is created by these tests.
+
+The setup CLI test resolves Git Bash relative to Git's reported executable
+directory on Windows, and uses bash from PATH on Linux. WORKLOG_TEST_BASH may
+select another installed Bash executable. No fixed installation drive or user
+folder is required.

@@ -4,11 +4,11 @@
 
 The complete module passed the real Bend 2.0.40 `--verdict` route with Bun 1.3.10 and Lean 4.34.0 on 2026-11-08:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-order && sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Order.bend --verdict'
+```sh
+sh scripts/bend-linux.sh proof/Order.bend --verdict
 ```
 
-Observed result: `ALL PROOFS CHECK`, exit 0. The absolute paths above record the executed worktree command; after integration, the repository-local wrapper can be used from the project root.
+Observed result: `ALL PROOFS CHECK`, exit 0. Run the command from this repository root in a Linux or WSL shell; see BEND_TOOLCHAIN.md for PowerShell commands.
 
 ## Public theorem API
 

@@ -60,15 +60,15 @@ deleted/private exclusion and tombstone helper laws remain in the root law set.
 These witnesses supplement those universal laws rather than claiming an
 unproved universal full-replay provenance theorem for arbitrary future events.
 
-Executed validation:
+Executed validation, reproducible from the repository root in Linux or WSL:
 
 ```sh
-sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Replay.bend --verdict
+sh scripts/bend-linux.sh proof/Replay.bend --verdict
 ```
 
-Result: `ALL PROOFS CHECK`. The replay helpers used here are unchanged between
-the isolated worktree Core and root `fb808b6`; that root revision additionally
-checks prospective command completeness before accepting staged commands.
+Result: `ALL PROOFS CHECK`. These proofs import the included bend/Core.bend.
+The current core also checks prospective command completeness before accepting
+staged commands.
 
 A temporary negative module asserted that directly applying an older 02:00
 note to a task updated at 05:00 keeps `updated` at 05:00. The same real compiler

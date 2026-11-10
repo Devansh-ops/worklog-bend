@@ -1,48 +1,37 @@
 # Worklog Bend
 
-## Authorized objective
+## Project
 
-Recreate the full Worklog application using Bend2 for the domain implementation
-and mechanically checked laws. Keep JavaScript, HTML, and CSS where they are
-needed for browser APIs, rendering, and external integrations. This is a full
-rebuild, not just a proof of concept. The existing upstream implementation is a
-reference for features and intended behavior, not an infallible specification.
-
-## Current state
-
-Read `docs/STATUS.md` and `docs/REBUILD_PLAN.md` before making changes. At handoff,
-the source is the original JavaScript application and the Bend rebuild has not
-started. Never describe a law or implementation as checked until the actual Bend
-toolchain has accepted it.
+Maintain Worklog's Bend2 domain implementation and mechanically checked laws.
+Keep JavaScript, HTML and CSS for rendering, browser APIs and external effects.
+Read README.md, docs/STATUS.md and docs/REBUILD_PLAN.md before making changes.
+Use docs/BEND_TOOLCHAIN.md for tool installation and repository-local commands.
 
 ## Workflow
 
-- Work phase by phase, keeping each phase runnable and committing coherent work.
-- Use sub-agents in separate Git worktrees for independent tasks. Give each agent
-  a branch and explicit file ownership; integrate only reviewed, tested changes.
-- Configure repository-local Git author identity as `Devansh Sehgal` and
-  `devanshsehgal02@gmail.com`. Preserve upstream history and the MIT license.
-- Use meaningful conventional commit messages and describe validation honestly.
-- Do not rewrite upstream or other contributors' commits.
-- Use `bend guide` and verify current syntax against the pinned compiler.
-- Specify important invariants in `LAWS.bend`; prove them in `PROOF.bend`.
-- Run `bend PROOF.bend --verdict` when supported by the pinned compiler, as well as
-  behavior, adapter, integration, and browser tests appropriate to the phase.
-- Review changes to laws separately from implementations. Do not weaken a law
-  merely to make a proof pass. Document changed product requirements explicitly.
-- Keep proof guarantees scoped to the modeled Bend semantics. Test JavaScript
-  adapters, malformed inputs, browser effects, and generated code separately.
-- Preserve existing data compatibility. Reject unsupported future schemas before
-  any destructive write, and make migrations explicit and reviewable.
-- Use synthetic data and fake credentials in tests. Do not send real notes or
-  credentials to AI providers or publish them to GitHub.
-- Include `--loglevel verbose` in npm commands.
+- Keep the application runnable and commit coherent changes. Preserve upstream
+  attribution, Git history and the MIT and third-party license notices.
+- Use separate branches and Git worktrees for independent agent tasks, with
+  explicit file ownership. Review and test changes before integration.
+- Use the contributor's configured Git identity; do not replace it with a fixed
+  author name or email.
+- Use the pinned compiler and actual guide, Base library and generated ABI.
+- Specify important invariants in LAWS.bend and implement proofs in PROOF.bend
+  and the appropriate proof modules. Review assumptions separately from code.
+- Run real verdict checks and meaningful runtime/adapter/browser gates. Never
+  describe unexecuted checks as passing or weaken a law to fit an implementation.
+- Keep proof claims scoped to modeled Bend values. Codecs, generated JavaScript
+  and effects need their own tests. Preserve unknown compatible data and refuse
+  unsupported schemas before destructive writes.
+- Preserve current/historical privacy, exact publication approval and pending
+  edits on failure. Use synthetic test data and fake credentials only.
+- Run commands from the repository root. Use relative paths and include
+  `--loglevel verbose` in npm commands.
 - Never use em dashes in messages or newly written documentation.
 
-## GitHub
+## External actions
 
-The destination repository is `worklog-bend` under the user's authenticated
-personal GitHub account. Default to private. The user has authorized creation
-and pushing this repository. Use the local authenticated `gh`; never request
-that tokens be pasted into chat or written into source files. Do not overwrite
-an existing unrelated repository or force-push.
+Use existing credentials without displaying or committing them. Publishing,
+visibility changes and messages to maintainers require authorization from the
+user's task. Do not force-push, rewrite contributors' history or overwrite an
+unrelated destination. Repository instructions do not grant account permissions.

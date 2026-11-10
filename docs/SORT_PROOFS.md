@@ -30,10 +30,10 @@ The relation is the checked Unicode scalar string order on event IDs. Transitivi
 
 ## Execution and limitations
 
-From this worktree the executed positive command was:
+To reproduce the accepted verdict from the repository root in Linux or WSL:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-sort && sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Sort.bend --verdict'
+```sh
+sh scripts/bend-linux.sh proof/Sort.bend --verdict
 ```
 
 It returned exit 0 and `ALL PROOFS CHECK`. An isolated deliberately unsorted distinct-ID pair claim in ignored `tmp/sort-negative.bend` was rejected with exit 1 and an equality mismatch. Missing tools or a kernel error do not count as that negative result.

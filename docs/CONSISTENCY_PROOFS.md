@@ -4,11 +4,11 @@
 
 The complete module passed Bend 2.0.40 with the real Lean 4.34.0 verdict kernel on 2026-11-08:
 
-```powershell
-wsl --distribution Ubuntu --exec sh -lc 'cd /mnt/c/Users/desehgal/Documents/temp/worklog-bend-order && sh /mnt/c/Users/desehgal/Documents/personal/tanmay/worklog-test/scripts/bend-linux.sh proof/Consistent.bend --verdict'
+```sh
+sh scripts/bend-linux.sh proof/Consistent.bend --verdict
 ```
 
-Observed result: `ALL PROOFS CHECK`, exit 0. The executed worktree borrowed the already checked `Membership.bend` and `Equality.bend` dependencies; those dependency files are not part of this commit. The proof changes no runtime algorithm or compiler code.
+Observed result: `ALL PROOFS CHECK`, exit 0. The checked `proof/Membership.bend` and `proof/Equality.bend` dependencies are included in this repository. Run from the repository root in Linux or WSL after the documented toolchain setup. The proof changes no runtime algorithm or compiler code.
 
 ## Input predicates and public API
 

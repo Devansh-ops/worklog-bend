@@ -71,10 +71,9 @@ network/CORS failure, malformed provider JSON, malformed summary shape, duplicat
 model keys, and oversized output. No request reaches a real provider.
 
 The existing `ai.test.js`, `consent.test.js`, `providers.test.js`, and `rules.test.js`
-were also run through the Node baseline. Standup-view fixtures require complete
-authoritative history and the new report bridge before their model actions are
-meaningful integration checks. The parent integration owns that fixture update
-and real browser acceptance.
+also run through the Node baseline. Standup-view fixtures include complete
+authoritative history and the compiled report bridge. BROWSER_ACCEPTANCE.md
+records actual browser consent and request-flow checks.
 
 ## Current documentation inspection
 
@@ -83,7 +82,7 @@ The API shapes were checked against the primary
 [Hugging Face Chat Completion documentation](https://huggingface.co/docs/inference-providers/tasks/chat-completion),
 and [OpenAI Chat API reference](https://developers.openai.com/api/reference/resources/chat).
 These support the retained compatible request shape; they are not evidence that
-this machine completed a live authenticated request or browser CORS preflight.
+a live authenticated request was executed or browser CORS preflight.
 Google's compatibility documentation URL returned an unsupported content type
 to the documentation fetcher, so that check remains limited to the deterministic
 existing Google route contract. Catalogue fallbacks are suggestions, not a promise
