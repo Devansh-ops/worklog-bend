@@ -235,3 +235,8 @@ The runnable rebuild is implemented. All local proof, runtime
 and browser gates passed. Keep STATUS.md and LAW_REVIEW.md current when behavior
 changes, preserve configured source visibility and upstream history, and rerun the
 appropriate gates before integrating future work.
+
+The preview release gate additionally includes live GitHub persistence with
+synthetic data: exact approved commits, peer conflicts, in-flight edits and
+fresh-browser replay. See LIVE_GITHUB_ACCEPTANCE.md. Journal compaction remains
+a separate future design with retention and concurrency laws.

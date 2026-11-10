@@ -1,6 +1,6 @@
 {
   "name": "work-log",
-  "version": "0.1.0",
+  "version": "0.1.0-preview.1",
   "description": "Worklog with a checked Bend domain core and static browser adapters.",
   "type": "module",
   "license": "MIT",

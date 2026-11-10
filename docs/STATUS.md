@@ -48,7 +48,7 @@ verbatim, with no semantic-redaction promise.
 | Pinned toolchain | Bend 2.0.40 at `70607d7f740e3b3f4a1edc61069df8ab88491696`, SHA-256 checked; Bun 1.3.10 and Lean 4.34.0. Real true/false/open/nonterminating verdict outcomes checked. |
 | `npm --loglevel verbose run check:build` | Real root and Planning verdicts accepted; all five generated assets and source/asset integrity manifest reproduced exactly. |
 | `npm --loglevel verbose run test:proof` | Real root verdict accepted, with 168 declarations including supporting lemmas and witnesses. All 13 named finite mutation counterexamples and full production-source mutant gates rejected as expected. These are not 168 independent application guarantees. |
-| `npm --loglevel verbose test` | All 16 runtime/adapter suites passed, including 48 inherited suite executions across four zones with 1,004 assertions, 29 store groups, strict codecs, generated domain, cache, provider contracts, portable setup and real CLI/package tests. |
+| `npm --loglevel verbose test` | All 16 runtime/adapter suites passed, including 48 inherited suite executions across four zones with 1,004 assertions, 30 store groups, strict codecs, generated domain, cache, provider contracts, portable setup and real CLI/package tests. |
 | `npm --loglevel verbose run test:browser:all` | All six real Chromium gates passed: generated ABI, 400px/wide demo and focus, exact AI consent, full setup/task/publish/report/wiki/reminder workflows, native vault/subpath execution, and concurrent-tab pending recovery. |
 | Hosted Ubuntu | [Full final-source workflow](https://github.com/Devansh-ops/worklog-bend/actions/runs/42411768245) passed for `cb8de30`, including all 13 mutations, 16 runtime suites and six browser gates. Earlier integrations also passed. |
 | Fresh GitHub clone | Fresh GitHub checkout downloaded/hash-verified locked compiler/proof tools. Fast-forward to `cb8de30` accepted root/Planning verdicts, reproduced every asset and passed real CLI smoke. Checkout remained clean. |
@@ -70,7 +70,9 @@ deletion, exact approval/acknowledgement, report exclusion and reminder guards.
 support lemmas and nonempty witnesses. This is not universal verification of the
 compiler, JSON, DOM, storage, transport or all rendering/calendar behavior.
 
-All provider and repository browser fixtures use synthetic data and credentials.
+Deterministic provider and repository fixtures use synthetic data and credentials.
+Live GitHub persistence also passed with synthetic data and an in-memory
+credential relay; see LIVE_GITHUB_ACCEPTANCE.md.
 Live provider authentication/CORS, real GPU model inference and OS default-browser
 launching were not executed. No npm/BendHub package was published. The public hosted site is verified below.
 Source publication and hosted deployment are separate release actions.
@@ -95,3 +97,13 @@ Real Chromium verified the normal welcome link and the 1440px/400px demo:
 synthetic edits appeared and disappeared on reload, with no page errors, failed
 asset responses or requests outside the hosted project. No work data or tokens
 were published by this deployment. Browser tests use isolated contexts.
+
+## Preview acceptance
+
+The complete hosted workflow passed for commit 7b27e21 (run 42759083059),
+including reproducible assets, real verdicts, all mutations, runtime suites and
+six browser gates. Live GitHub persistence then passed against that deployed
+source: exact approved bytes/message/parent and complete tree changes, real peer
+conflict rejection, in-flight edits and fresh-context replay. All temporary
+synthetic repositories were removed. See LIVE_GITHUB_ACCEPTANCE.md and
+releases/v0.1.0-preview.1.md for scope and reproduction.
