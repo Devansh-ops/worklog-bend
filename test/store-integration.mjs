@@ -49,6 +49,24 @@ await check('stage and preview are local; exact approval is required and immutab
   assert.equal(store.pending.length, 0);
   assert.deepEqual(JSON.parse(repo.files.get(PATHS.manifest)).retained, { manifest: true });
 });
+await check('approved normal and migration messages equal GitHub-style canonical readback', async () => {
+  for (const migration of [false, true]) {
+    storage.clear();
+    const repo = migration ? new FakeRepo([
+      [PATHS.manifest, { schema: 1, months: ['2026-11'] }],
+      [PATHS.legacyMonth('2026-11'), { month: '2026-11', events: [create] }],
+    ]) : withHistory();
+    const commit = repo.commitFiles.bind(repo);
+    repo.commitFiles = async (files, message, options) => ({ ...await commit(files, message, options),
+      message: message.replace(/\n+$/, '') });
+    const store = new Store(repo); await store.load(); store.stage(migration ? note : create);
+    const plan = migration ? store.migrationCommit() : await store.preparePublish();
+    const result = migration ? await store.migrate(plan) : await store.push(plan);
+    assert.equal(result.message, plan.message);
+    assert.equal(repo.writes[0].message, plan.message, 'Execution may not normalize after approval');
+    assert.ok(plan.message.includes('\n\n'), 'Preserve paragraph boundaries');
+  }
+});
 await check('a new event staged during publication stays pending and survives reload', async () => {
   const repo = withHistory(), store = new Store(repo);
   await store.load(); store.stage(create); const plan = await store.preparePublish();

@@ -948,7 +948,9 @@ export class Store {
 
   _sealPlan(plan) {
     if (!this.loaded || !this.authoritative || !this.state.complete) throw new Error('Complete supported authoritative history is required before a write plan.');
-    const sealed = immutableJSON({ ...plan, target: this.repo.slug || this.repo.owner + '/' + this.repo.repo,
+    // GitHub's commit-message field omits terminal newlines. Canonicalize
+    // before the preview is sealed; execution sends this exact approved text.
+    const sealed = immutableJSON({ ...plan, message: plan.message.replace(/\n+$/, ''), target: this.repo.slug || this.repo.owner + '/' + this.repo.repo,
       branch: this.repo.branch || 'main', base: this.repo.readRevision || null,
       sourceSchemas: [...this.schemas.values()], pending: this.pending,
       deletions: plan.deletions || [] });

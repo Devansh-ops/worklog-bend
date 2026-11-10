@@ -183,7 +183,7 @@ export async function prepareScaffold({ repo, state, isPrivate = true, withExamp
   }
   const plan = immutableJSON({ target: repo.slug, branch: repo.branch || 'main', state, isPrivate,
     expectedBase, files, retainedPaths, deletions: [],
-    message: 'worklog: initialise data repo\n\nScaffolding created by the work log app.\n' });
+    message: 'worklog: initialise data repo\n\nScaffolding created by the work log app.' });
   preparedPlans.set(plan, repo);
   return plan;
 }

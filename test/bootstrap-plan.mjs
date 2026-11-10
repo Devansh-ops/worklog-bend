@@ -32,6 +32,7 @@ await check('missing setup prepares exact immutable values without side effects'
   assert.equal(repo.created.private, true);
   assert.equal(repo.written.files, plan.files);
   assert.equal(repo.written.message, plan.message);
+  assert.equal(repo.written.message.replace(/\n+$/, ''), plan.message, 'Preview must match GitHub message readback');
   await assert.rejects(() => scaffold({ repo, plan }), /exact prepared/);
 });
 await check('options change the reviewed payload and destination changes invalidate approval', async () => {
