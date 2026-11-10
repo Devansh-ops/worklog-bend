@@ -69,7 +69,11 @@ Your log lives in a git repo you own, not here. Nothing is stored in this packag
 and your tokens stay in the browser. Point the app at a repo from Settings, or run
 node scripts/setup.mjs from the repo to create one from the terminal.
 
-Source and setup documentation (a hosted demo has not been deployed):
+Hosted app:
+  https://devansh-ops.github.io/worklog-bend/
+Demo:
+  https://devansh-ops.github.io/worklog-bend/?demo=1
+Source and setup documentation:
   https://github.com/Devansh-ops/worklog-bend
 `;
 

@@ -16,14 +16,14 @@ Usage: node scripts/setup.mjs [options]
   --private          New repository is private (default)
   --public           New repository is public
   --no-examples      Omit synthetic starter tasks
-  --app-url URL      Default: http://127.0.0.1:8765/
+  --app-url URL      Default: https://devansh-ops.github.io/worklog-bend/
   --dry-run          Inspect/print exact files, without remote writes
   --yes, -y          Explicitly approve the printed plan without prompting
   --help, -h         Show help
 No force push or automatic rebase. Failed writes preserve local work.`;
 
 export function parseArgs(argv) {
-  const o = { private: true, examples: true, yes: false, dryRun: false, appUrl: 'http://127.0.0.1:8765/' };
+  const o = { private: true, examples: true, yes: false, dryRun: false, appUrl: 'https://devansh-ops.github.io/worklog-bend/' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') o.help = true;

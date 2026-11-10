@@ -22,9 +22,25 @@ and packaged distributions. Generated asset notices are maintained by the build.
 
 ## Hosted demo
 
-A public Worklog Bend demo has not been deployed. Deploy and verify the static
-HTML, CSS, JavaScript and generated modules together before adding an app/demo
-URL to README.md. Relative asset paths support repository subpaths.
+The public app is https://devansh-ops.github.io/worklog-bend/ and the temporary
+demo is https://devansh-ops.github.io/worklog-bend/?demo=1.
+
+GitHub Pages publishes `main` at the repository root, matching upstream's branch
+deployment layout. `.nojekyll` keeps the reviewed static files unchanged. HTML,
+CSS, JavaScript, generated modules and license notices deploy together.
+
+After a deployment completes, verify its HTTPS assets and browser routes from
+the corresponding checkout (with Playwright installed):
+
+```sh
+node scripts/test-hosted-site.mjs
+```
+
+An optional first argument selects another project-root HTTPS URL. The check
+compares all generated hashes to the local manifest, then exercises the normal
+welcome page and ephemeral demo in fresh wide/narrow browser contexts. No tokens
+or work-data repository are required. Run this separately from pre-deployment
+CI so a previous site version cannot create a deployment-order race.
 
 ## Contacting upstream
 

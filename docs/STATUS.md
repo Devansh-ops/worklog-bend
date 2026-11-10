@@ -72,10 +72,26 @@ compiler, JSON, DOM, storage, transport or all rendering/calendar behavior.
 
 All provider and repository browser fixtures use synthetic data and credentials.
 Live provider authentication/CORS, real GPU model inference and OS default-browser
-launching were not executed. No npm/BendHub package or hosted site was published.
+launching were not executed. No npm/BendHub package was published. The public hosted site is verified below.
 Source publication and hosted deployment are separate release actions.
 
 Run locally from the checkout with `npm --loglevel verbose start -- --demo`.
 Developer reproduction: `BEND_TOOLCHAIN.md`. Detailed boundary evidence:
 `CORE_ABI.md`, `PLANNING_ABI.md`, `STORE_PROTOCOL.md`, `SOURCE_CACHE.md`,
 `AI_TRANSPORT.md`, `BROWSER_ACCEPTANCE.md`, `RELEASE_CHECKS.md`.
+
+## Hosted application
+
+The source repository is public. GitHub Pages serves `main` from the repository
+root with HTTPS enforcement and `.nojekyll`:
+
+- App: https://devansh-ops.github.io/worklog-bend/
+- Demo: https://devansh-ops.github.io/worklog-bend/?demo=1
+
+Initial deployment `d939430` built successfully. `scripts/test-hosted-site.mjs`
+verified the public HTML/CSS/worker and license paths, JavaScript MIME types,
+and all five generated module byte counts/hashes against the local manifest.
+Real Chromium verified the normal welcome link and the 1440px/400px demo:
+synthetic edits appeared and disappeared on reload, with no page errors, failed
+asset responses or requests outside the hosted project. No work data or tokens
+were published by this deployment. Browser tests use isolated contexts.

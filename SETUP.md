@@ -32,10 +32,10 @@ never committed, and never sent anywhere except `api.github.com`.
 
 ## 2. Point the app at your repo
 
-In this checkout, run `npm --loglevel verbose start` and open the displayed local
-URL. For an ephemeral preview, run `npm --loglevel verbose start -- --demo`.
-The upstream public demo runs the original application. The rebuilt app's
-first-run wizard asks for:
+Open the [hosted Worklog Bend app](https://devansh-ops.github.io/worklog-bend/).
+For a temporary preview, [try the demo](https://devansh-ops.github.io/worklog-bend/?demo=1).
+You can also run `npm --loglevel verbose start` from a checkout and use its
+printed local URL. The first-run wizard asks for:
 
 - **Data repo** — `your-username/worklog-data`, or any repo you like. It can be one you already use.
 - **Visibility**, if it doesn't exist yet — **Private** is the recommended default. Public means
@@ -94,6 +94,9 @@ There is no recovery: forget the passphrase and you re-enter your tokens.
 
 If you prefer to create the repo yourself, or want to script it for a team:
 
+New data repositories link back to the hosted Worklog Bend app by default.
+Use `--app-url` to select a local or separately hosted installation.
+
 ```powershell
 node scripts/setup.mjs                          # private repo named <you>/worklog-data
 node scripts/setup.mjs --repo me/journal        # a name you pick
@@ -126,7 +129,8 @@ published to npm. Use this checkout to run its actual generated Bend modules.
 
 The shipped HTML, CSS, JavaScript and generated modules can also be served by a
 static host. Keep their relative directory layout. Subpath execution is tested
-at `/project/`. No hosted deployment was published as part of this recovery.
+at `/project/`. The hosted deployment uses the same relative layout beneath
+`/worklog-bend/`. Its normal and demo routes are verified in a real browser.
 The data repository is separate from the application repository.
 
 For a local model, configure its server to allow the exact app origin. If a

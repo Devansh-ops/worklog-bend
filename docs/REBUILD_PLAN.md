@@ -193,7 +193,7 @@ posts a report to a team channel or sends real credentials to providers.
 
 ## Phase 7: packaging, deployment, and final acceptance
 
-Status: accepted within the documented deployment/test scope. Final production source passed all local gates, clean GitHub checkout/build/CLI and the complete hosted Ubuntu workflow. STATUS.md records the run and remote evidence. No package or hosted site was published.
+Status: accepted within the documented deployment/test scope. Final production source passed all local gates, clean GitHub checkout/build/CLI and the complete hosted Ubuntu workflow. STATUS.md records the run and remote evidence. No package was published. The public GitHub Pages application and demo have passed hosted HTTPS and browser checks recorded in STATUS.md.
 
 Verify CLI flags, static path confinement and GET/HEAD behavior, browser launch,
 port conflicts, clean shutdown, setup/scaffold output, and distribution contents.

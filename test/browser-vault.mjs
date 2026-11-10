@@ -130,7 +130,7 @@ try {
   for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole('button', { name: '+ Task', exact: true }).waitFor();
-    assert.equal(await page.title(), 'Work Log');
+    assert.equal(await page.title(), 'Worklog Bend');
   }
   for (const name of ['core', 'reports', 'publication', 'views', 'planning']) assert.ok(loaded.some(item => item.path === `/project/js/generated/${name}.mjs` && item.status === 200), `Subpath missing ${name}`);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);

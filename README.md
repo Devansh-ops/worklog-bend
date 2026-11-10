@@ -6,7 +6,11 @@ Bend 2.0.40 for pure domain logic and mechanically checked laws.
 An independent derivative of [Worklog](https://github.com/tanmayagrawal21/worklog)
 by Tanmay Agrawal. The original Git history and MIT notice are preserved.
 
-## Run the demo
+**[Try the demo](https://devansh-ops.github.io/worklog-bend/?demo=1)**: synthetic
+tasks, no token, temporary edits. **[Open the app](https://devansh-ops.github.io/worklog-bend/)**
+to connect your own data repository.
+
+## Run locally
 
 ```powershell
 git clone https://github.com/Devansh-ops/worklog-bend.git
@@ -17,13 +21,10 @@ npm --loglevel verbose start -- --demo
 Open the local URL printed by the server. Demo tasks and edits are temporary.
 Add `--no-open` to print the URL without launching a browser.
 
-**A public hosted demo has not been deployed.** The upstream project's hosted
-app runs its own implementation. This README will link to a hosted Worklog Bend
-demo after that deployment has been verified.
-
-To use your own data repository, run `npm --loglevel verbose start` without
-`--demo` and follow [SETUP.md](SETUP.md). Terminal setup is also available with
-`npm --loglevel verbose run setup:data` using an authenticated GitHub CLI.
+Use the [hosted app](https://devansh-ops.github.io/worklog-bend/) or run locally
+without `--demo` to connect your own data repository. Follow [SETUP.md](SETUP.md).
+Terminal setup is also available with `npm --loglevel verbose run setup:data`
+using an authenticated GitHub CLI.
 
 ## Features
 
@@ -102,7 +103,9 @@ been published to npm; `npx work-log` is not an installation command for this fo
 
 The app is static and supports repository subpaths. Deploy the reviewed HTML,
 CSS, JavaScript and generated modules together, preserving their directory
-layout. GitHub Pages is not currently enabled for this repository.
+layout. This repository publishes GitHub Pages from `main` at `/`, with
+`.nojekyll` preserving the static files. The app lives at `/worklog-bend/` and
+its demo uses the same path with `?demo=1`.
 
 For bugs, include a minimal synthetic reproduction and the relevant test command.
 Keep changes to pure domain logic and their laws together; test effect adapters

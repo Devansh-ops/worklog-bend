@@ -72,6 +72,7 @@ try {
     const f = await fixture(); const r = await runSetup(['--repo=synthetic/data', '--no-examples', '--yes'], f.deps);
     assert.equal(f.created.private, true); assert.equal(f.created.auto_init, false);
     for (const file of r.plan.files) assert.equal(show(f, file.path), file.text);
+    assert.ok(show(f, 'README.md').includes('https://devansh-ops.github.io/worklog-bend/'), 'New data README must link to the hosted app by default');
     const commit = git(['--git-dir', f.remote, 'cat-file', 'commit', r.commit], f.folder);
     assert.equal(commit.slice(commit.indexOf('\n\n') + 2), r.plan.message);
     assert.equal(git(['--git-dir', f.remote, 'rev-list', '--count', 'main'], f.folder).trim(), '1');

@@ -44,7 +44,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(url);
     await page.getByRole('tab').filter({ hasText: 'Board (10)' }).waitFor();
-    assert.equal(await page.title(), 'Work Log');
+    assert.equal(await page.title(), 'Worklog Bend');
     await page.getByRole('button', { name: '+ Task', exact: true }).click();
     const title = page.getByPlaceholder('What needs doing?');
     await title.waitFor();
